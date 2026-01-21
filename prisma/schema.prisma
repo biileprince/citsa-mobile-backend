@@ -1,0 +1,419 @@
+// Prisma Schema for CITSA Student App
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum UserRole {
+  STUDENT
+  CLASS_REP
+  ADMIN
+}
+
+enum PostType {
+  ANNOUNCEMENT
+  EVENT
+  OPPORTUNITY
+  BLOG
+  TESTIMONY
+}
+
+enum PostCategory {
+  POSITIVE_NEWS
+  EVENTS
+  OPPORTUNITY
+  BLOG
+  TESTIMONY
+}
+
+enum EventStatus {
+  REGISTERED
+  CANCELLED
+  ATTENDED
+}
+
+enum NotificationType {
+  LIKE
+  COMMENT
+  EVENT_REMINDER
+  ANNOUNCEMENT
+  URGENT_ANNOUNCEMENT
+  EVENT_FULL
+  NEW_EVENT
+  MENTION
+}
+
+enum GroupRole {
+  MEMBER
+  MODERATOR
+  ADMIN
+}
+
+// Models
+
+model User {
+  id              String    @id @default(uuid())
+  studentId       String    @unique @map("student_id") @db.VarChar(9)
+  email           String    @unique @db.VarChar(255)
+  fullName        String?   @map("full_name") @db.VarChar(255)
+  bio             String?   @db.Text
+  avatarUrl       String?   @map("avatar_url") @db.VarChar(500)
+  program         String?   @db.VarChar(100)
+  classYear       String?   @map("class_year") @db.VarChar(4)
+  skills          Json?     @default("[]")
+  interests       Json?     @default("[]")
+  portfolioUrl    String?   @map("portfolio_url") @db.VarChar(500)
+  role            UserRole  @default(STUDENT)
+  isVerified      Boolean   @default(false) @map("is_verified")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  posts                    Post[]
+  comments                 Comment[]
+  likes                    Like[]
+  savedPosts               SavedPost[]
+  eventRegistrations       EventRegistration[]
+  groupMemberships         GroupMembership[]
+  notifications            Notification[]
+  shares                   Share[]
+  classroomAnnouncements   ClassroomAnnouncement[]
+  refreshTokens            RefreshToken[]
+
+  @@index([studentId])
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique @db.VarChar(500)
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+model OtpVerification {
+  id        String   @id @default(uuid())
+  email     String   @db.VarChar(255)
+  otpCode   String   @map("otp_code") @db.VarChar(6)
+  expiresAt DateTime @map("expires_at")
+  isUsed    Boolean  @default(false) @map("is_used")
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([email])
+  @@index([expiresAt])
+  @@map("otp_verifications")
+}
+
+model Post {
+  id            String        @id @default(uuid())
+  authorId      String        @map("author_id")
+  type          PostType
+  category      PostCategory?
+  title         String?       @db.VarChar(255)
+  content       String        @db.Text
+  imageUrl      String?       @map("image_url") @db.VarChar(500)
+  likesCount    Int           @default(0) @map("likes_count")
+  commentsCount Int           @default(0) @map("comments_count")
+  sharesCount   Int           @default(0) @map("shares_count")
+  viewsCount    Int           @default(0) @map("views_count")
+  isPinned      Boolean       @default(false) @map("is_pinned")
+  isPublished   Boolean       @default(true) @map("is_published")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  author      User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  event       Event?
+  comments    Comment[]
+  likes       Like[]
+  savedPosts  SavedPost[]
+  shares      Share[]
+
+  @@index([authorId])
+  @@index([type])
+  @@index([createdAt(sort: Desc)])
+  @@index([isPinned, createdAt(sort: Desc)])
+  @@map("posts")
+}
+
+model Event {
+  id                   String    @id @default(uuid())
+  postId               String    @unique @map("post_id")
+  eventDate            DateTime  @map("event_date") @db.Date
+  eventTime            String    @map("event_time") @db.VarChar(50)
+  location             String    @db.VarChar(255)
+  capacityMax          Int       @map("capacity_max")
+  capacityCurrent      Int       @default(0) @map("capacity_current")
+  registrationDeadline DateTime? @map("registration_deadline")
+  tags                 Json?     @default("[]")
+  isUrgent             Boolean   @default(false) @map("is_urgent")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  post          Post                @relation(fields: [postId], references: [id], onDelete: Cascade)
+  registrations EventRegistration[]
+
+  @@index([eventDate])
+  @@index([postId])
+  @@map("events")
+}
+
+model EventRegistration {
+  id           String      @id @default(uuid())
+  eventId      String      @map("event_id")
+  userId       String      @map("user_id")
+  status       EventStatus @default(REGISTERED)
+  registeredAt DateTime    @default(now()) @map("registered_at")
+
+  // Relations
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+  @@map("event_registrations")
+}
+
+model Comment {
+  id              String   @id @default(uuid())
+  postId          String   @map("post_id")
+  userId          String   @map("user_id")
+  parentCommentId String?  @map("parent_comment_id")
+  content         String   @db.Text
+  likesCount      Int      @default(0) @map("likes_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  post          Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentComment Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies       Comment[] @relation("CommentReplies")
+  likes         Like[]
+
+  @@index([postId])
+  @@index([userId])
+  @@index([parentCommentId])
+  @@map("comments")
+}
+
+model Like {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  likeableType String   @map("likeable_type") @db.VarChar(50) // 'post' or 'comment'
+  likeableId   String   @map("likeable_id")
+  postId       String?  @map("post_id")
+  commentId    String?  @map("comment_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post    Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, likeableType, likeableId])
+  @@index([userId])
+  @@index([likeableType, likeableId])
+  @@index([postId])
+  @@index([commentId])
+  @@map("likes")
+}
+
+model SavedPost {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  postId    String   @map("post_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([userId])
+  @@index([postId])
+  @@map("saved_posts")
+}
+
+model Share {
+  id       String   @id @default(uuid())
+  userId   String   @map("user_id")
+  postId   String   @map("post_id")
+  sharedAt DateTime @default(now()) @map("shared_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([postId])
+  @@map("shares")
+}
+
+model Group {
+  id           String   @id @default(uuid())
+  name         String   @db.VarChar(255)
+  description  String?  @db.Text
+  category     String?  @db.VarChar(100)
+  avatarUrl    String?  @map("avatar_url") @db.VarChar(500)
+  coverColor   String?  @map("cover_color") @db.VarChar(50)
+  membersCount Int      @default(0) @map("members_count")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  memberships GroupMembership[]
+
+  @@index([category])
+  @@index([name])
+  @@map("groups")
+}
+
+model GroupMembership {
+  id       String    @id @default(uuid())
+  groupId  String    @map("group_id")
+  userId   String    @map("user_id")
+  role     GroupRole @default(MEMBER)
+  joinedAt DateTime  @default(now()) @map("joined_at")
+
+  // Relations
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@index([userId])
+  @@map("group_memberships")
+}
+
+model Classroom {
+  id             String   @id @default(uuid())
+  yearGroup      String   @map("year_group") @db.VarChar(50)
+  graduationYear String   @map("graduation_year") @db.VarChar(4)
+  semester       String   @db.VarChar(50)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  announcements  ClassroomAnnouncement[]
+  courses        Course[]
+  timetableSlots TimetableSlot[]
+
+  @@map("classrooms")
+}
+
+model ClassroomAnnouncement {
+  id            String   @id @default(uuid())
+  classroomId   String   @map("classroom_id")
+  repId         String?  @map("rep_id")
+  title         String   @db.VarChar(255)
+  content       String   @db.Text
+  isPinned      Boolean  @default(false) @map("is_pinned")
+  isUrgent      Boolean  @default(false) @map("is_urgent")
+  likesCount    Int      @default(0) @map("likes_count")
+  commentsCount Int      @default(0) @map("comments_count")
+  viewsCount    Int      @default(0) @map("views_count")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  classroom Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  rep       User?     @relation(fields: [repId], references: [id], onDelete: SetNull)
+
+  @@index([classroomId])
+  @@index([repId])
+  @@index([createdAt(sort: Desc)])
+  @@map("classroom_announcements")
+}
+
+model Course {
+  id          String   @id @default(uuid())
+  classroomId String   @map("classroom_id")
+  courseCode  String   @map("course_code") @db.VarChar(20)
+  courseName  String   @map("course_name") @db.VarChar(255)
+  credits     Int
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  classroom      Classroom       @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  timetableSlots TimetableSlot[]
+  quizzes        Quiz[]
+
+  @@map("courses")
+}
+
+model TimetableSlot {
+  id          String   @id @default(uuid())
+  classroomId String   @map("classroom_id")
+  courseId    String   @map("course_id")
+  dayOfWeek   String   @map("day_of_week") @db.VarChar(10)
+  startTime   String   @map("start_time") @db.VarChar(10)
+  endTime     String   @map("end_time") @db.VarChar(10)
+  room        String   @db.VarChar(50)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  classroom Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  course    Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([classroomId])
+  @@index([dayOfWeek])
+  @@map("timetable_slots")
+}
+
+model Quiz {
+  id        String   @id @default(uuid())
+  courseId  String   @map("course_id")
+  title     String   @db.VarChar(255)
+  quizDate  DateTime @map("quiz_date") @db.Date
+  quizTime  String   @map("quiz_time") @db.VarChar(10)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+  @@index([quizDate])
+  @@map("quizzes")
+}
+
+model Notification {
+  id                String           @id @default(uuid())
+  userId            String           @map("user_id")
+  type              NotificationType
+  title             String           @db.VarChar(255)
+  message           String           @db.Text
+  relatedEntityType String?          @map("related_entity_type") @db.VarChar(50)
+  relatedEntityId   String?          @map("related_entity_id")
+  isRead            Boolean          @default(false) @map("is_read")
+  createdAt         DateTime         @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt(sort: Desc)])
+  @@map("notifications")
+}
