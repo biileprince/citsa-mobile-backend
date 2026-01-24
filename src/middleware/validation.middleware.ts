@@ -50,20 +50,18 @@ export const sendOtpValidation = [
   body("studentId")
     .notEmpty()
     .withMessage("Student ID is required")
-    .isLength({ min: 9, max: 9 })
-    .withMessage("Student ID must be exactly 9 digits")
-    .isNumeric()
-    .withMessage("Student ID must contain only numbers"),
+    .trim()
+    .matches(/^[A-Z]{2}\/[A-Z]{3}\/\d{2}\/\d{4}$/)
+    .withMessage("Student ID must be in format PS/ITC/22/0120"),
 ];
 
 export const verifyOtpValidation = [
   body("studentId")
     .notEmpty()
     .withMessage("Student ID is required")
-    .isLength({ min: 9, max: 9 })
-    .withMessage("Student ID must be exactly 9 digits")
-    .isNumeric()
-    .withMessage("Student ID must contain only numbers"),
+    .trim()
+    .matches(/^[A-Z]{2}\/[A-Z]{3}\/\d{2}\/\d{4}$/)
+    .withMessage("Student ID must be in format PS/ITC/22/0120"),
   body("otpCode")
     .notEmpty()
     .withMessage("OTP code is required")

@@ -81,6 +81,12 @@ export function errorHandler(
   if (err.name === "PrismaClientKnownRequestError") {
     const prismaError = err as { code: string; meta?: { target?: string[] } };
 
+    logger.error(`Prisma error ${prismaError.code}:`, {
+      code: prismaError.code,
+      meta: prismaError.meta,
+      message: err.message,
+    });
+
     switch (prismaError.code) {
       case "P2002":
         sendError(
@@ -97,7 +103,9 @@ export function errorHandler(
         sendError(
           res,
           ErrorCodes.DATABASE_ERROR,
-          "Database error occurred",
+          process.env.NODE_ENV === "development"
+            ? `Database error: ${prismaError.code} - ${err.message}`
+            : "Database error occurred",
           500,
         );
         return;
