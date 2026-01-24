@@ -70,6 +70,7 @@ export interface TokenResponse {
   refreshToken: string;
   expiresIn: number;
   user: UserProfile;
+  needsProfileSetup?: boolean;
 }
 
 // User Types

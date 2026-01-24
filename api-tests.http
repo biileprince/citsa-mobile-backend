@@ -1,0 +1,166 @@
+### CITSA Mobile Backend API Tests
+### Using REST Client Extension for VS Code
+### 
+### Instructions:
+### 1. Click "Send Request" above each request
+### 2. Check server console for OTP code after Step 1
+### 3. Copy OTP and update @otpCode variable below
+### 4. Run steps sequentially
+###
+### ================================================================
+
+### Variables
+@baseUrl = http://localhost:3000/api/v1
+@studentId = PS/ITC/22/0001
+@otpCode = 242292
+# @accessToken will be set automatically from Step 2 response
+# @refreshToken will be set automatically from Step 2 response
+
+### ================================================================
+### STEP 1: Send OTP
+### Check server console for the OTP code after this request
+### ================================================================
+POST {{baseUrl}}/auth/send-otp
+Content-Type: application/json
+
+{
+  "studentId": "{{studentId}}"
+}
+
+### ================================================================
+### STEP 1B: Resend OTP (if needed)
+### Invalidates previous OTP and sends a new one
+### ================================================================
+POST {{baseUrl}}/auth/resend-otp
+Content-Type: application/json
+
+{
+  "studentId": "{{studentId}}"
+}
+
+### ================================================================
+### STEP 2: Verify OTP
+### Update @otpCode variable above with the code from server console
+### ================================================================
+# @name verifyOtp
+POST {{baseUrl}}/auth/verify-otp
+Content-Type: application/json
+
+{
+  "studentId": "{{studentId}}",
+  "otpCode": "{{otpCode}}"
+}
+
+### Extract tokens for subsequent requests
+@accessToken = {{verifyOtp.response.body.data.accessToken}}
+@refreshToken = {{verifyOtp.response.body.data.refreshToken}}
+
+### ================================================================
+### STEP 3: Setup Profile (if needsProfileSetup was true)
+### ================================================================
+PUT {{baseUrl}}/users/profile
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "fullName": "Test Student",
+  "bio": "A passionate student at UCC",
+  "program": "Information Technology",
+  "classYear": "2026",
+  "skills": ["Flutter", "Dart", "Node.js", "TypeScript"],
+  "interests": ["Mobile Development", "Web Development", "AI"],
+  "portfolioUrl": "https://github.com/teststudent"
+}
+
+### ================================================================
+### STEP 4: Get User Profile
+### ================================================================
+GET {{baseUrl}}/users/profile
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### STEP 5: Refresh Access Token
+### ================================================================
+# @name refreshToken
+POST {{baseUrl}}/auth/refresh-token
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### Update access token with new one
+@accessToken = {{refreshToken.response.body.data.accessToken}}
+
+### ================================================================
+### STEP 6: Test with New Access Token
+### ================================================================
+GET {{baseUrl}}/users/profile
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Additional Tests
+### ================================================================
+
+### Health Check
+GET {{baseUrl}}/health
+
+### ================================================================
+### Error Cases - Test Invalid Requests
+### ================================================================
+
+### Invalid Student ID Format (should fail)
+POST {{baseUrl}}/auth/send-otp
+Content-Type: application/json
+
+{
+  "studentId": "12345678"
+}
+
+### Non-existent Student (should fail)
+POST {{baseUrl}}/auth/send-otp
+Content-Type: application/json
+
+{
+  "studentId": "PS/XXX/99/9999"
+}
+
+### Invalid OTP Code (should fail)
+POST {{baseUrl}}/auth/verify-otp
+Content-Type: application/json
+
+{
+  "studentId": "{{studentId}}",
+  "otpCode": "000000"
+}
+
+### Missing Authorization Header (should fail)
+GET {{baseUrl}}/users/profile
+
+### ================================================================
+### Test Other Students
+### ================================================================
+
+### Send OTP to Ama Osei
+POST {{baseUrl}}/auth/send-otp
+Content-Type: application/json
+
+{
+  "studentId": "PS/ITC/22/0120"
+}
+
+### Send OTP to Kofi Asante
+POST {{baseUrl}}/auth/send-otp
+Content-Type: application/json
+
+{
+  "studentId": "PS/CSC/22/0045"
+}
+
+### Send OTP to Abena Boateng
+POST {{baseUrl}}/auth/send-otp
+Content-Type: application/json
+
+{
+  "studentId": "PS/ITC/23/0201"
+}

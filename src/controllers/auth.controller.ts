@@ -24,6 +24,20 @@ export const sendOtp = asyncHandler(
 );
 
 /**
+ * Resend OTP to student email
+ * POST /api/v1/auth/resend-otp
+ */
+export const resendOtp = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { studentId } = req.body as SendOtpRequest;
+
+    const result = await authService.resendOtp(studentId);
+
+    sendSuccess(res, result, "OTP resent successfully");
+  },
+);
+
+/**
  * Verify OTP and get tokens
  * POST /api/v1/auth/verify-otp
  */
@@ -69,6 +83,7 @@ export const logout = asyncHandler(
 
 export default {
   sendOtp,
+  resendOtp,
   verifyOtp,
   refreshToken,
   logout,

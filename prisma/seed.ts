@@ -1,17 +1,32 @@
 import { PrismaClient, UserRole, PostType, PostCategory } from "@prisma/client";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
+import dotenv from "dotenv";
 
-const prisma = new PrismaClient();
+// Load environment variables
+dotenv.config();
+
+// Build adapter from environment
+const adapter = new PrismaMariaDb({
+  host: process.env.DATABASE_HOST || "localhost",
+  port: parseInt(process.env.DATABASE_PORT || "3306", 10),
+  user: process.env.DATABASE_USER || "root",
+  password: process.env.DATABASE_PASSWORD || "",
+  database: process.env.DATABASE_NAME || "citsa_db",
+  connectionLimit: 5,
+});
+
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   console.log("🌱 Starting database seed...");
 
   // Create Admin user
   const admin = await prisma.user.upsert({
-    where: { studentId: "000000001" },
+    where: { studentId: "PS/ADM/20/0001" },
     update: {},
     create: {
-      studentId: "000000001",
-      email: "admin@university.edu",
+      studentId: "PS/ADM/20/0001",
+      email: "admin@ucc.edu.gh",
       fullName: "CITSA Admin",
       bio: "Official CITSA Administrator",
       role: UserRole.ADMIN,
@@ -34,22 +49,93 @@ async function main() {
 
   // Create Class Rep user
   const classRep = await prisma.user.upsert({
-    where: { studentId: "000000002" },
+    where: { studentId: "PS/ITC/21/0089" },
     update: {},
     create: {
-      studentId: "000000002",
-      email: "000000002@university.edu",
-      fullName: "John Doe",
-      bio: "Class Representative for 3rd Year Computer Science",
+      studentId: "PS/ITC/21/0089",
+      email: "kwame.mensah@ucc.edu.gh",
+      fullName: "Kwame Mensah",
+      bio: "Class Representative for 3rd Year Information Technology",
       role: UserRole.CLASS_REP,
       isVerified: true,
-      program: "Computer Science",
+      program: "Information Technology",
       classYear: "2025",
       skills: JSON.stringify(["Python", "JavaScript", "Leadership"]),
       interests: JSON.stringify(["AI", "Web Development", "Student Affairs"]),
     },
   });
   console.log("✅ Class Rep created:", classRep.fullName);
+
+  // Create sample students
+  const students = await Promise.all([
+    prisma.user.upsert({
+      where: { studentId: "PS/ITC/22/0001" },
+      update: {},
+      create: {
+        studentId: "PS/ITC/22/0001",
+        email: "test.student@ucc.edu.gh",
+        role: UserRole.STUDENT,
+        isVerified: false,
+      },
+    }),
+    prisma.user.upsert({
+      where: { studentId: "PS/ITC/22/0120" },
+      update: {},
+      create: {
+        studentId: "PS/ITC/22/0120",
+        email: "ama.osei@ucc.edu.gh",
+        fullName: "Ama Osei",
+        bio: "Aspiring software engineer passionate about mobile development",
+        role: UserRole.STUDENT,
+        isVerified: false,
+        program: "Information Technology",
+        classYear: "2026",
+        skills: JSON.stringify(["Flutter", "Dart", "Firebase"]),
+        interests: JSON.stringify([
+          "Mobile Development",
+          "UI/UX",
+          "Cloud Computing",
+        ]),
+      },
+    }),
+    prisma.user.upsert({
+      where: { studentId: "PS/CSC/22/0045" },
+      update: {},
+      create: {
+        studentId: "PS/CSC/22/0045",
+        email: "kofi.asante@ucc.edu.gh",
+        fullName: "Kofi Asante",
+        bio: "Computer Science student interested in AI and data science",
+        role: UserRole.STUDENT,
+        isVerified: false,
+        program: "Computer Science",
+        classYear: "2026",
+        skills: JSON.stringify(["Python", "Machine Learning", "Data Analysis"]),
+        interests: JSON.stringify(["AI", "Data Science", "Research"]),
+      },
+    }),
+    prisma.user.upsert({
+      where: { studentId: "PS/ITC/23/0201" },
+      update: {},
+      create: {
+        studentId: "PS/ITC/23/0201",
+        email: "abena.boateng@ucc.edu.gh",
+        fullName: "Abena Boateng",
+        bio: "Fresh IT student eager to learn web development",
+        role: UserRole.STUDENT,
+        isVerified: false,
+        program: "Information Technology",
+        classYear: "2027",
+        skills: JSON.stringify(["HTML", "CSS", "JavaScript"]),
+        interests: JSON.stringify([
+          "Web Development",
+          "Design",
+          "Entrepreneurship",
+        ]),
+      },
+    }),
+  ]);
+  console.log(`✅ Created ${students.length} sample students`);
 
   // Create sample Groups
   const groups = await Promise.all([

@@ -23,6 +23,18 @@ router.post(
 );
 
 /**
+ * @route   POST /api/v1/auth/resend-otp
+ * @desc    Resend OTP to student email (invalidates previous OTPs)
+ * @access  Public
+ */
+router.post(
+  "/resend-otp",
+  otpLimiter,
+  validate(sendOtpValidation),
+  authController.resendOtp,
+);
+
+/**
  * @route   POST /api/v1/auth/verify-otp
  * @desc    Verify OTP and get tokens
  * @access  Public

@@ -38,7 +38,29 @@ export function generateRefreshToken(payload: JwtPayload): string {
 export async function sendOtp(
   studentId: string,
 ): Promise<{ message: string; email: string }> {
-  const email = generateStudentEmail(studentId, config.universityEmailDomain);
+  // Find student in database
+  const student = await prisma.user.findUnique({
+    where: { studentId },
+    select: { email: true, isActive: true },
+  });
+
+  if (!student) {
+    throw new ApiError(
+      404,
+      ErrorCodes.USER_NOT_FOUND,
+      "Student not found. Please contact administration.",
+    );
+  }
+
+  if (!student.isActive) {
+    throw new ApiError(
+      403,
+      ErrorCodes.USER_INACTIVE,
+      "Student account is inactive. Please contact administration.",
+    );
+  }
+
+  const email = student.email;
 
   // Check for rate limiting (recent OTP requests)
   const recentOtp = await prisma.otpVerification.findFirst({
@@ -87,14 +109,27 @@ export async function sendOtp(
     },
   });
 
-  // Send OTP via email
-  const emailSent = await sendOtpEmail(email, otpCode);
-  if (!emailSent) {
-    throw new ApiError(
-      500,
-      ErrorCodes.EXTERNAL_SERVICE_ERROR,
-      "Failed to send OTP email",
-    );
+  // Send OTP via email (optional in development)
+  if (config.env === "production") {
+    const emailSent = await sendOtpEmail(email, otpCode);
+    if (!emailSent) {
+      throw new ApiError(
+        500,
+        ErrorCodes.EXTERNAL_SERVICE_ERROR,
+        "Failed to send OTP email",
+      );
+    }
+  } else {
+    // In development, log OTP to console
+    console.log("\n" + "=".repeat(50));
+    console.log("🔐 OTP CODE FOR TESTING");
+    console.log("=".repeat(50));
+    console.log(`Student ID: ${studentId}`);
+    console.log(`Email: ${email}`);
+    console.log(`OTP Code: ${otpCode}`);
+    console.log(`Expires in: ${config.otp.expirySeconds} seconds`);
+    console.log("=".repeat(50) + "\n");
+    logger.info(`OTP generated for ${email}: ${otpCode}`);
   }
 
   logger.info(`OTP sent to ${email}`);
@@ -105,13 +140,131 @@ export async function sendOtp(
 }
 
 /**
+ * Resend OTP to student email (invalidates previous OTPs)
+ */
+export async function resendOtp(
+  studentId: string,
+): Promise<{ message: string; email: string; expiresIn: number }> {
+  // Find student in database
+  const student = await prisma.user.findUnique({
+    where: { studentId },
+    select: { email: true, isActive: true },
+  });
+
+  if (!student) {
+    throw new ApiError(
+      404,
+      ErrorCodes.USER_NOT_FOUND,
+      "Student not found. Please contact administration.",
+    );
+  }
+
+  if (!student.isActive) {
+    throw new ApiError(
+      403,
+      ErrorCodes.USER_INACTIVE,
+      "Student account is inactive. Please contact administration.",
+    );
+  }
+
+  const email = student.email;
+
+  // Check for rate limiting (recent OTP requests including resends)
+  const recentCount = await prisma.otpVerification.count({
+    where: {
+      email,
+      createdAt: {
+        gte: new Date(
+          Date.now() - config.otp.rateLimitWindowMinutes * 60 * 1000,
+        ),
+      },
+    },
+  });
+
+  if (recentCount >= config.otp.rateLimitMaxRequests) {
+    throw new ApiError(
+      429,
+      ErrorCodes.OTP_RATE_LIMITED,
+      `Too many OTP requests. Please wait ${config.otp.rateLimitWindowMinutes} minutes.`,
+    );
+  }
+
+  // Invalidate all previous unused OTPs for this email
+  await prisma.otpVerification.updateMany({
+    where: {
+      email,
+      isUsed: false,
+    },
+    data: {
+      isUsed: true,
+    },
+  });
+
+  // Generate new OTP
+  const otpCode = generateOtpCode(6);
+  const hashedOtp = await bcrypt.hash(otpCode, 10);
+
+  // Store OTP in database
+  await prisma.otpVerification.create({
+    data: {
+      email,
+      otpCode: hashedOtp,
+      expiresAt: new Date(Date.now() + config.otp.expirySeconds * 1000),
+    },
+  });
+
+  // Send OTP via email (optional in development)
+  if (config.env === "production") {
+    const emailSent = await sendOtpEmail(email, otpCode);
+    if (!emailSent) {
+      throw new ApiError(
+        500,
+        ErrorCodes.EXTERNAL_SERVICE_ERROR,
+        "Failed to send OTP email",
+      );
+    }
+  } else {
+    // In development, log OTP to console
+    console.log("\n" + "=".repeat(50));
+    console.log("🔄 RESEND OTP CODE FOR TESTING");
+    console.log("=".repeat(50));
+    console.log(`Student ID: ${studentId}`);
+    console.log(`Email: ${email}`);
+    console.log(`OTP Code: ${otpCode}`);
+    console.log(`Expires in: ${config.otp.expirySeconds} seconds`);
+    console.log("=".repeat(50) + "\n");
+    logger.info(`OTP resent for ${email}: ${otpCode}`);
+  }
+
+  logger.info(`OTP resent to ${email}`);
+  return {
+    message: "New OTP sent successfully",
+    email: email.replace(/^(.{3}).*(@.*)$/, "$1****$2"), // Masked email
+    expiresIn: config.otp.expirySeconds,
+  };
+}
+
+/**
  * Verify OTP and return tokens
  */
 export async function verifyOtp(
   studentId: string,
   otpCode: string,
 ): Promise<TokenResponse> {
-  const email = generateStudentEmail(studentId, config.universityEmailDomain);
+  // Find student in database
+  const student = await prisma.user.findUnique({
+    where: { studentId },
+  });
+
+  if (!student) {
+    throw new ApiError(
+      404,
+      ErrorCodes.USER_NOT_FOUND,
+      "Student not found. Please contact administration.",
+    );
+  }
+
+  const email = student.email;
 
   // Find the most recent unused OTP for this email
   const otpRecord = await prisma.otpVerification.findFirst({
@@ -164,30 +317,13 @@ export async function verifyOtp(
     data: { isUsed: true },
   });
 
-  // Find or create user
-  let user = await prisma.user.findUnique({
-    where: { studentId },
+  // Update user verification status
+  const user = await prisma.user.update({
+    where: { id: student.id },
+    data: { isVerified: true },
   });
 
-  const isNewUser = !user;
-
-  if (!user) {
-    // Create new user
-    user = await prisma.user.create({
-      data: {
-        studentId,
-        email,
-        isVerified: true,
-      },
-    });
-    logger.info(`New user created: ${studentId}`);
-  } else {
-    // Update existing user
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { isVerified: true },
-    });
-  }
+  logger.info(`User verified: ${studentId}`);
 
   // Generate tokens
   const tokenPayload: JwtPayload = {
@@ -230,16 +366,15 @@ export async function verifyOtp(
     createdAt: user.createdAt,
   };
 
-  // Send welcome email for new users (async, don't wait)
-  if (isNewUser) {
-    sendWelcomeEmail(email, user.fullName || "Student").catch(() => {});
-  }
+  // Check if profile setup is needed
+  const needsProfileSetup = !user.fullName || !user.program || !user.classYear;
 
   return {
     accessToken,
     refreshToken,
     expiresIn: 3600, // 1 hour in seconds
     user: userProfile,
+    needsProfileSetup,
   };
 }
 
