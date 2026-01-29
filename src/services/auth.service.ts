@@ -109,27 +109,14 @@ export async function sendOtp(
     },
   });
 
-  // Send OTP via email (optional in development)
-  if (config.env === "production") {
-    const emailSent = await sendOtpEmail(email, otpCode);
-    if (!emailSent) {
-      throw new ApiError(
-        500,
-        ErrorCodes.EXTERNAL_SERVICE_ERROR,
-        "Failed to send OTP email",
-      );
-    }
-  } else {
-    // In development, log OTP to console
-    console.log("\n" + "=".repeat(50));
-    console.log("🔐 OTP CODE FOR TESTING");
-    console.log("=".repeat(50));
-    console.log(`Student ID: ${studentId}`);
-    console.log(`Email: ${email}`);
-    console.log(`OTP Code: ${otpCode}`);
-    console.log(`Expires in: ${config.otp.expirySeconds} seconds`);
-    console.log("=".repeat(50) + "\n");
-    logger.info(`OTP generated for ${email}: ${otpCode}`);
+  // Send OTP via email
+  const emailSent = await sendOtpEmail(email, otpCode);
+  if (!emailSent) {
+    throw new ApiError(
+      500,
+      ErrorCodes.EXTERNAL_SERVICE_ERROR,
+      "Failed to send OTP email. Please try again.",
+    );
   }
 
   logger.info(`OTP sent to ${email}`);
@@ -213,27 +200,14 @@ export async function resendOtp(
     },
   });
 
-  // Send OTP via email (optional in development)
-  if (config.env === "production") {
-    const emailSent = await sendOtpEmail(email, otpCode);
-    if (!emailSent) {
-      throw new ApiError(
-        500,
-        ErrorCodes.EXTERNAL_SERVICE_ERROR,
-        "Failed to send OTP email",
-      );
-    }
-  } else {
-    // In development, log OTP to console
-    console.log("\n" + "=".repeat(50));
-    console.log("🔄 RESEND OTP CODE FOR TESTING");
-    console.log("=".repeat(50));
-    console.log(`Student ID: ${studentId}`);
-    console.log(`Email: ${email}`);
-    console.log(`OTP Code: ${otpCode}`);
-    console.log(`Expires in: ${config.otp.expirySeconds} seconds`);
-    console.log("=".repeat(50) + "\n");
-    logger.info(`OTP resent for ${email}: ${otpCode}`);
+  // Send OTP via email
+  const emailSent = await sendOtpEmail(email, otpCode);
+  if (!emailSent) {
+    throw new ApiError(
+      500,
+      ErrorCodes.EXTERNAL_SERVICE_ERROR,
+      "Failed to resend OTP email. Please try again.",
+    );
   }
 
   logger.info(`OTP resent to ${email}`);

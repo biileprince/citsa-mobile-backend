@@ -5,15 +5,24 @@ import dotenv from "dotenv";
 // Load environment variables
 dotenv.config();
 
-// Build adapter from environment
-const adapter = new PrismaMariaDb({
+// Build adapter configuration for TiDB Cloud
+const adapterConfig: any = {
   host: process.env.DATABASE_HOST || "localhost",
   port: parseInt(process.env.DATABASE_PORT || "3306", 10),
   user: process.env.DATABASE_USER || "root",
   password: process.env.DATABASE_PASSWORD || "",
   database: process.env.DATABASE_NAME || "citsa_db",
   connectionLimit: 5,
-});
+};
+
+// Add SSL for TiDB Cloud (port 4000 indicates TiDB)
+if (parseInt(process.env.DATABASE_PORT || "3306") === 4000) {
+  adapterConfig.ssl = {
+    rejectUnauthorized: true,
+  };
+}
+
+const adapter = new PrismaMariaDb(adapterConfig);
 
 const prisma = new PrismaClient({ adapter });
 
