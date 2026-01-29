@@ -35,3 +35,7 @@ tmp/
 temp/
 uploads/
 test-complete-flow.js
+test-db-connection.js
+test-email.js
+update-email.js
+test-tidb.js
