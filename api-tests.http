@@ -99,6 +99,442 @@ GET {{baseUrl}}/users/profile
 Authorization: Bearer {{accessToken}}
 
 ### ================================================================
+### FEED ENDPOINTS
+### ================================================================
+
+### ================================================================
+### Get All Posts (Public - No Auth Required)
+### ================================================================
+GET {{baseUrl}}/feed/posts
+
+### ================================================================
+### Get All Posts (Authenticated - includes like/save status)
+### ================================================================
+GET {{baseUrl}}/feed/posts
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Get Posts with Pagination
+### ================================================================
+GET {{baseUrl}}/feed/posts?page=1&limit=10
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Filter Posts by Type - ANNOUNCEMENT
+### ================================================================
+GET {{baseUrl}}/feed/posts?type=ANNOUNCEMENT
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Filter Posts by Type - EVENT
+### ================================================================
+GET {{baseUrl}}/feed/posts?type=EVENT
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Filter Posts by Type - OPPORTUNITY
+### ================================================================
+GET {{baseUrl}}/feed/posts?type=OPPORTUNITY
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Filter Posts by Category - POSITIVE_NEWS
+### ================================================================
+GET {{baseUrl}}/feed/posts?category=POSITIVE_NEWS
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Filter Posts by Category - EVENTS
+### ================================================================
+GET {{baseUrl}}/feed/posts?category=EVENTS
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Search Posts by Keyword
+### ================================================================
+GET {{baseUrl}}/feed/posts?search=hackathon
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Combined Filters - Type + Search
+### ================================================================
+GET {{baseUrl}}/feed/posts?type=ANNOUNCEMENT&search=welcome
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Get Single Post by ID (replace {postId} with actual ID)
+### ================================================================
+@postId ="659bc47f-29db-475f-bf38-1e50c148c977"
+GET {{baseUrl}}/feed/posts/{{postId}}
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Create Announcement Post (Admin Only)
+### ================================================================
+# @name createPost
+POST {{baseUrl}}/feed/posts
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "type": "ANNOUNCEMENT",
+  "category": "POSITIVE_NEWS",
+  "title": "Test Announcement from REST Client",
+  "content": "This is a test announcement created via REST Client. Testing the feed API endpoint for creating posts.",
+  "isPinned": false
+}
+
+### Save post ID for subsequent tests
+@createdPostId = {{createPost.response.body.data.id}}
+
+### ================================================================
+### Create Event Post (Admin Only)
+### ================================================================
+# @name createEventPost
+POST {{baseUrl}}/feed/posts
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "type": "EVENT",
+  "category": "EVENTS",
+  "title": "REST Client Test Event - API Workshop",
+  "content": "Join us for a hands-on workshop on API testing using REST Client. Learn best practices and tools.",
+  "eventDate": "2026-02-15",
+  "eventTime": "14:00",
+  "location": "Computer Lab 201",
+  "capacityMax": 50,
+  "registrationDeadline": "2026-02-10",
+  "tags": ["API", "Testing", "Workshop"],
+  "isUrgent": false
+}
+
+### Save event post ID
+@eventPostId = {{createEventPost.response.body.data.id}}
+
+### ================================================================
+### Create Opportunity Post (Admin Only)
+### ================================================================
+POST {{baseUrl}}/feed/posts
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "type": "OPPORTUNITY",
+  "category": "OPPORTUNITY",
+  "title": "Software Engineering Internship",
+  "content": "Tech Corp is hiring software engineering interns for summer 2026. Great opportunity to gain industry experience.",
+  "isPinned": false
+}
+
+### ================================================================
+### Create Pinned Post (Admin Only)
+### ================================================================
+POST {{baseUrl}}/feed/posts
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "type": "ANNOUNCEMENT",
+  "category": "POSITIVE_NEWS",
+  "title": "🔥 Important: Semester Registration Open",
+  "content": "Semester registration is now open! Visit the registrar's office or register online before the deadline.",
+  "isPinned": true
+}
+
+### ================================================================
+### Like a Post
+### ================================================================
+POST {{baseUrl}}/feed/posts/{{createdPostId}}/like
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Try to Like Same Post Again (Should Fail with 409)
+### ================================================================
+POST {{baseUrl}}/feed/posts/{{createdPostId}}/like
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Unlike a Post
+### ================================================================
+DELETE {{baseUrl}}/feed/posts/{{createdPostId}}/like
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Add Comment to Post
+### ================================================================
+# @name addComment
+POST {{baseUrl}}/feed/posts/{{createdPostId}}/comments
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "content": "Great post! This is a test comment from REST Client."
+}
+
+### Save comment ID
+@commentId = {{addComment.response.body.data.id}}
+
+### ================================================================
+### Reply to Comment
+### ================================================================
+POST {{baseUrl}}/feed/posts/{{createdPostId}}/comments
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "content": "Thanks! This is a reply to the test comment.",
+  "parentCommentId": "{{commentId}}"
+}
+
+### ================================================================
+### Add Multiple Comments
+### ================================================================
+POST {{baseUrl}}/feed/posts/{{createdPostId}}/comments
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "content": "Another comment for testing purposes."
+}
+
+###
+POST {{baseUrl}}/feed/posts/{{createdPostId}}/comments
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "content": "One more comment to test the feed functionality."
+}
+
+### ================================================================
+### Save Post to Bookmarks
+### ================================================================
+POST {{baseUrl}}/feed/posts/{{createdPostId}}/save
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Try to Save Same Post Again (Should Fail with 409)
+### ================================================================
+POST {{baseUrl}}/feed/posts/{{createdPostId}}/save
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Get Saved Posts
+### ================================================================
+GET {{baseUrl}}/feed/saved
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Get Saved Posts with Pagination
+### ================================================================
+GET {{baseUrl}}/feed/saved?page=1&limit=5
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Unsave Post
+### ================================================================
+DELETE {{baseUrl}}/feed/posts/{{createdPostId}}/save
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Share Post
+### ================================================================
+POST {{baseUrl}}/feed/posts/{{createdPostId}}/share
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Get Post Details with Comments
+### ================================================================
+GET {{baseUrl}}/feed/posts/{{createdPostId}}
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Complex Query - Filter + Search + Pagination
+### ================================================================
+GET {{baseUrl}}/feed/posts?type=ANNOUNCEMENT&category=POSITIVE_NEWS&search=test&page=1&limit=5
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Update Post (Admin Only)
+### ================================================================
+PUT {{baseUrl}}/feed/posts/{{createdPostId}}
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "title": "UPDATED: Test Announcement from REST Client",
+  "content": "This announcement has been updated via REST Client. The content has been modified to test the update functionality.",
+  "isPinned": true
+}
+
+### ================================================================
+### Update Event Post - Change Event Details
+### ================================================================
+PUT {{baseUrl}}/feed/posts/{{eventPostId}}
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "title": "UPDATED: API Workshop - Advanced Testing",
+  "content": "Updated workshop details: Now includes advanced API testing strategies and hands-on exercises.",
+  "eventDate": "2026-02-20",
+  "eventTime": "15:30",
+  "location": "Computer Lab 305 (Changed)",
+  "capacityMax": 75,
+  "registrationDeadline": "2026-02-15",
+  "tags": ["API", "Testing", "Advanced", "Workshop"],
+  "isUrgent": true
+}
+
+### ================================================================
+### EVENT ENDPOINTS
+### ================================================================
+
+### ================================================================
+### Get All Events (Public - No Auth Required)
+### ================================================================
+GET {{baseUrl}}/events
+
+### ================================================================
+### Get All Events (Authenticated - includes registration status)
+### ================================================================
+GET {{baseUrl}}/events
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Get Events with Pagination
+### ================================================================
+GET {{baseUrl}}/events?page=1&limit=5
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Get Upcoming Events Only
+### ================================================================
+GET {{baseUrl}}/events?upcoming=true
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Search Events by Keyword
+### ================================================================
+GET {{baseUrl}}/events?search=workshop
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Combined - Upcoming Events with Search
+### ================================================================
+GET {{baseUrl}}/events?upcoming=true&search=API&page=1&limit=10
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Get Single Event by ID (use eventPostId from event post creation)
+### ================================================================
+# First, get the event ID from the event post
+# @name getEventPost
+GET {{baseUrl}}/feed/posts/{{eventPostId}}
+Authorization: Bearer {{accessToken}}
+
+### Save event ID from response
+@eventId = {{getEventPost.response.body.data.event.id}}
+
+### ================================================================
+### Get Event Details
+### ================================================================
+GET {{baseUrl}}/events/{{eventId}}
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Register for Event
+### ================================================================
+POST {{baseUrl}}/events/{{eventId}}/register
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Try to Register Again (Should Fail with 400 - Already Registered)
+### ================================================================
+POST {{baseUrl}}/events/{{eventId}}/register
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Get Event After Registration (Should show isRegistered: true)
+### ================================================================
+GET {{baseUrl}}/events/{{eventId}}
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Get My Registered Events
+### ================================================================
+GET {{baseUrl}}/events/my-registrations
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Get My Upcoming Registered Events
+### ================================================================
+GET {{baseUrl}}/events/my-registrations?upcoming=true
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Get My Registered Events with Pagination
+### ================================================================
+GET {{baseUrl}}/events/my-registrations?page=1&limit=5
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Cancel Event Registration
+### ================================================================
+DELETE {{baseUrl}}/events/{{eventId}}/register
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Try to Cancel Again (Should Fail with 404 - Registration Not Found)
+### ================================================================
+DELETE {{baseUrl}}/events/{{eventId}}/register
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Verify Event After Cancellation (Should show isRegistered: false)
+### ================================================================
+GET {{baseUrl}}/events/{{eventId}}
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Test Event Capacity - Create Event with Small Capacity
+### ================================================================
+# @name createSmallEvent
+POST {{baseUrl}}/feed/posts
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "type": "EVENT",
+  "category": "EVENTS",
+  "title": "Small Capacity Event - Testing Full Registration",
+  "content": "This event has only 1 spot to test full capacity handling.",
+  "eventDate": "2026-03-01",
+  "eventTime": "10:00",
+  "location": "Meeting Room A",
+  "capacityMax": 1,
+  "registrationDeadline": "2026-02-28",
+  "tags": ["Test"],
+  "isUrgent": false
+}
+
+### Save small event ID
+@smallEventId = {{createSmallEvent.response.body.data.event.id}}
+
+### ================================================================
+### Register for Small Capacity Event (Should Succeed)
+### ================================================================
+POST {{baseUrl}}/events/{{smallEventId}}/register
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Check Small Event Status (Should show isFull: true, spotsRemaining: 0)
+### ================================================================
+GET {{baseUrl}}/events/{{smallEventId}}
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
 ### Additional Tests
 ### ================================================================
 

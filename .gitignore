@@ -39,3 +39,6 @@ test-db-connection.js
 test-email.js
 update-email.js
 test-tidb.js
+swap-emails.js
+test-feed-complete.js
+update-admin-email.js

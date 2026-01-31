@@ -316,6 +316,113 @@ export const createPost = asyncHandler(
 );
 
 /**
+ * Update existing post (Admin only)
+ * PUT /api/v1/feed/posts/:id
+ */
+export const updatePost = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const { id } = req.params;
+    const userId = req.user!.userId;
+    const data = req.body;
+
+    // Check if post exists
+    const existingPost = await prisma.post.findUnique({
+      where: { id },
+      include: { event: true },
+    });
+
+    if (!existingPost) {
+      throw ApiError.notFound("Post not found");
+    }
+
+    // Update post
+    const post = await prisma.post.update({
+      where: { id },
+      data: {
+        type: data.type,
+        category: data.category,
+        title: data.title,
+        content: data.content,
+        imageUrl: data.imageUrl,
+        isPinned: data.isPinned,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            fullName: true,
+            avatarUrl: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    // Handle event data if post type is EVENT
+    if (data.type === "EVENT" || existingPost.type === "EVENT") {
+      if (existingPost.event) {
+        // Update existing event
+        if (data.type === "EVENT") {
+          await prisma.event.update({
+            where: { id: existingPost.event.id },
+            data: {
+              eventDate: data.eventDate ? new Date(data.eventDate) : undefined,
+              eventTime: data.eventTime,
+              location: data.location,
+              capacityMax: data.capacityMax,
+              registrationDeadline: data.registrationDeadline
+                ? new Date(data.registrationDeadline)
+                : undefined,
+              tags: data.tags ? JSON.stringify(data.tags) : undefined,
+              isUrgent: data.isUrgent,
+            },
+          });
+        } else {
+          // Type changed from EVENT to something else, delete event
+          await prisma.event.delete({
+            where: { id: existingPost.event.id },
+          });
+        }
+      } else if (data.type === "EVENT" && data.eventDate && data.eventTime && data.location && data.capacityMax) {
+        // Create new event if changing to EVENT type
+        await prisma.event.create({
+          data: {
+            postId: post.id,
+            eventDate: new Date(data.eventDate),
+            eventTime: data.eventTime,
+            location: data.location,
+            capacityMax: data.capacityMax,
+            registrationDeadline: data.registrationDeadline
+              ? new Date(data.registrationDeadline)
+              : null,
+            tags: data.tags ? JSON.stringify(data.tags) : undefined,
+            isUrgent: data.isUrgent || false,
+          },
+        });
+      }
+    }
+
+    // Fetch complete updated post with event
+    const completePost = await prisma.post.findUnique({
+      where: { id: post.id },
+      include: {
+        author: {
+          select: {
+            id: true,
+            fullName: true,
+            avatarUrl: true,
+            role: true,
+          },
+        },
+        event: true,
+      },
+    });
+
+    sendSuccess(res, transformPost(completePost, userId), "Post updated successfully");
+  },
+);
+
+/**
  * Like a post
  * POST /api/v1/feed/posts/:id/like
  */
@@ -633,6 +740,7 @@ export default {
   getPosts,
   getPostById,
   createPost,
+  updatePost,
   likePost,
   unlikePost,
   addComment,

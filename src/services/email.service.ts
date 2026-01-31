@@ -49,7 +49,7 @@ export async function sendOtpEmail(
               </div>
               
               <p style="color: #dc3545; font-size: 14px; margin-top: 20px;">
-                ⏱️ This code expires in ${config.otp.expirySeconds} seconds
+                ⏱️ This code expires in ${Math.floor(config.otp.expirySeconds / 60)} minutes
               </p>
             </div>
             
@@ -63,7 +63,7 @@ export async function sendOtpEmail(
         </body>
         </html>
       `,
-      text: `Your CITSA App verification code is: ${otpCode}. This code expires in ${config.otp.expirySeconds} seconds.`,
+      text: `Your CITSA App verification code is: ${otpCode}. This code expires in ${Math.floor(config.otp.expirySeconds / 60)} minutes.`,
     };
 
     const info = await transporter.sendMail(mailOptions);
