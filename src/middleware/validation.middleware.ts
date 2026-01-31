@@ -149,14 +149,45 @@ export const createPostValidation = [
     .isIn(["POSITIVE_NEWS", "EVENTS", "OPPORTUNITY", "BLOG", "TESTIMONY"])
     .withMessage("Invalid category"),
   body("title")
-    .optional()
-    .isLength({ max: 255 })
-    .withMessage("Title must be less than 255 characters"),
+    .notEmpty()
+    .withMessage("Title is required")
+    .isLength({ min: 5, max: 500 })
+    .withMessage("Title must be between 5 and 500 characters"),
   body("content")
     .notEmpty()
     .withMessage("Content is required")
-    .isLength({ min: 1, max: 10000 })
-    .withMessage("Content must be between 1 and 10000 characters"),
+    .isLength({ min: 10 })
+    .withMessage("Content must be at least 10 characters"),
+  body("imageUrl").optional().isURL().withMessage("Invalid image URL"),
+  body("isPinned").optional().isBoolean().withMessage("isPinned must be boolean"),
+  // Event-specific fields
+  body("eventDate").optional().isISO8601().withMessage("Invalid event date"),
+  body("eventTime").optional().matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage("Invalid event time format (HH:MM)"),
+  body("location").optional().isString().withMessage("Location must be a string"),
+  body("capacityMax").optional().isInt({ min: 1 }).withMessage("Capacity must be at least 1"),
+  body("registrationDeadline").optional().isISO8601().withMessage("Invalid registration deadline"),
+  body("tags").optional().isArray().withMessage("Tags must be an array"),
+  body("isUrgent").optional().isBoolean().withMessage("isUrgent must be boolean"),
+];
+
+export const updatePostValidation = [
+  body("type")
+    .optional()
+    .isIn(["ANNOUNCEMENT", "EVENT", "OPPORTUNITY", "BLOG", "TESTIMONY"])
+    .withMessage("Invalid post type"),
+  body("category")
+    .optional()
+    .isIn(["POSITIVE_NEWS", "EVENTS", "OPPORTUNITY", "BLOG", "TESTIMONY"])
+    .withMessage("Invalid category"),
+  body("title")
+    .optional()
+    .isLength({ min: 5, max: 500 })
+    .withMessage("Title must be between 5 and 500 characters"),
+  body("content")
+    .optional()
+    .isLength({ min: 10 })
+    .withMessage("Content must be at least 10 characters"),
+  body("imageUrl").optional().isURL().withMessage("Invalid image URL"),
   body("isPinned")
     .optional()
     .isBoolean()

@@ -47,9 +47,7 @@ function transformEvent(event: any, userId?: string) {
         }
       : null,
     isRegistered: userId
-      ? event.registrations?.some(
-          (reg: any) => reg.userId === userId && reg.status === "REGISTERED",
-        )
+      ? (event.registrations && event.registrations.length > 0)
       : false,
     isFull: event.capacityCurrent >= event.capacityMax,
     spotsRemaining: Math.max(0, event.capacityMax - event.capacityCurrent),
@@ -100,7 +98,10 @@ export const getEvents = asyncHandler(
           },
           registrations: userId
             ? {
-                where: { userId },
+                where: { 
+                  userId,
+                  status: "REGISTERED"
+                },
                 select: { userId: true, status: true },
               }
             : false,
@@ -151,7 +152,10 @@ export const getEventById = asyncHandler(
         },
         registrations: userId
           ? {
-              where: { userId },
+              where: { 
+                userId,
+                status: "REGISTERED"
+              },
               select: { userId: true, status: true },
             }
           : false,
@@ -278,7 +282,10 @@ export const registerForEvent = asyncHandler(
           },
         },
         registrations: {
-          where: { userId },
+          where: { 
+            userId,
+            status: "REGISTERED"
+          },
           select: { userId: true, status: true },
         },
       },

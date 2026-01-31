@@ -8,6 +8,7 @@ import {
 import {
   validate,
   createPostValidation,
+  updatePostValidation,
   postIdValidation,
   postQueryValidation,
   createCommentValidation,
@@ -57,6 +58,19 @@ router.post(
   requireAdmin,
   validate(createPostValidation),
   feedController.createPost,
+);
+
+/**
+ * @route   PUT /api/v1/feed/posts/:id
+ * @desc    Update existing post (Admin only)
+ * @access  Private (Admin)
+ */
+router.put(
+  "/posts/:id",
+  authenticate,
+  requireAdmin,
+  validate([...postIdValidation, ...updatePostValidation]),
+  feedController.updatePost,
 );
 
 /**

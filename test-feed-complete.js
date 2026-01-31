@@ -111,7 +111,7 @@ async function testFeedFunctionality() {
       const posts = result.data.data;
       console.log(`✅ Retrieved ${posts.length} posts`);
       console.log('📊 Pagination:', result.data.pagination);
-      
+
       if (posts.length > 0) {
         console.log('\n📋 Sample Post:');
         console.log('   ID:', posts[0].id);
