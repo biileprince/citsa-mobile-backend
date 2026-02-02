@@ -47,6 +47,45 @@ function transformClassroom(classroom: any) {
 }
 
 /**
+ * Create new classroom (Admin only)
+ * POST /api/v1/classrooms
+ */
+export const createClassroom = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { yearGroup, graduationYear, semester, isActive } = req.body;
+
+    // Check if classroom already exists
+    const existing = await prisma.classroom.findFirst({
+      where: {
+        yearGroup,
+        semester,
+      },
+    });
+
+    if (existing) {
+      throw ApiError.conflict(
+        `Classroom for ${yearGroup} Semester ${semester} already exists`,
+      );
+    }
+
+    const classroom = await prisma.classroom.create({
+      data: {
+        yearGroup,
+        graduationYear,
+        semester,
+        isActive: isActive ?? true,
+      },
+    });
+
+    sendCreated(
+      res,
+      classroom,
+      "Classroom created successfully",
+    );
+  },
+);
+
+/**
  * Get all classrooms
  * GET /api/v1/classrooms
  */
@@ -483,6 +522,7 @@ export const getClassroomQuizzes = asyncHandler(
 );
 
 export default {
+  createClassroom,
   getClassrooms,
   getClassroomById,
   getClassroomTimetable,
