@@ -174,6 +174,13 @@ export interface NotificationQueryParams {
   unreadOnly?: string;
 }
 
+export interface CreateClassroomRequest {
+  yearGroup: string;
+  graduationYear: number;
+  semester: number;
+  isActive?: boolean;
+}
+
 // Error Codes
 export const ErrorCodes = {
   // Auth errors

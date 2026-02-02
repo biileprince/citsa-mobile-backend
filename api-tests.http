@@ -535,6 +535,305 @@ GET {{baseUrl}}/events/{{smallEventId}}
 Authorization: Bearer {{accessToken}}
 
 ### ================================================================
+### CLASSROOM ENDPOINTS
+### ================================================================
+
+### ================================================================
+### Create New Classroom (Admin Only)
+### ================================================================
+# @name createClassroom
+POST {{baseUrl}}/classrooms
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "yearGroup": "2026",
+  "graduationYear": 2030,
+  "semester": 1,
+  "isActive": true
+}
+
+### Save created classroom ID
+@createdClassroomId = {{createClassroom.response.body.data.id}}
+
+### ================================================================
+### Create Another Classroom - Semester 2
+### ================================================================
+POST {{baseUrl}}/classrooms
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "yearGroup": "2026",
+  "graduationYear": 2030,
+  "semester": 2,
+  "isActive": true
+}
+
+### ================================================================
+### Create Classroom for 2027
+### ================================================================
+POST {{baseUrl}}/classrooms
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "yearGroup": "2027",
+  "graduationYear": 2031,
+  "semester": 1,
+  "isActive": true
+}
+
+### ================================================================
+### Try to Create Duplicate Classroom (Should Fail with 409)
+### ================================================================
+POST {{baseUrl}}/classrooms
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "yearGroup": "2026",
+  "graduationYear": 2030,
+  "semester": 1
+}
+
+### ================================================================
+### Get All Classrooms
+### ================================================================
+GET {{baseUrl}}/classrooms
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Get All Classrooms with Pagination
+### ================================================================
+GET {{baseUrl}}/classrooms?page=1&limit=5
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Get Single Classroom Details
+### ================================================================
+GET {{baseUrl}}/classrooms/{{createdClassroomId}}
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Get Single Classroom Details (using ID from list)
+### ================================================================
+@classroomId = replace-with-actual-classroom-id
+GET {{baseUrl}}/classrooms/{{classroomId}}
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Get Classroom Timetable
+### ================================================================
+GET {{baseUrl}}/classrooms/{{classroomId}}/timetable
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Get Classroom Announcements
+### ================================================================
+GET {{baseUrl}}/classrooms/{{classroomId}}/announcements
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Get Classroom Announcements with Pagination
+### ================================================================
+GET {{baseUrl}}/classrooms/{{classroomId}}/announcements?page=1&limit=10
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Create Classroom Announcement (Class Rep Only)
+### ================================================================
+# @name createAnnouncement
+POST {{baseUrl}}/classrooms/{{classroomId}}/announcements
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "title": "Important: Quiz Rescheduled",
+  "content": "The Data Structures quiz originally scheduled for Monday has been moved to Wednesday at 2:00 PM. Please prepare accordingly. Topics covered: Trees, Graphs, and Hash Tables.",
+  "isPinned": false,
+  "isUrgent": true
+}
+
+### Save announcement ID
+@announcementId = {{createAnnouncement.response.body.data.id}}
+
+### ================================================================
+### Create Regular Announcement
+### ================================================================
+POST {{baseUrl}}/classrooms/{{classroomId}}/announcements
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "title": "Study Group Session - Database Design",
+  "content": "Join us for a collaborative study session on database normalization and ER diagrams. This Saturday at 10 AM in the library. All students welcome!",
+  "isPinned": false,
+  "isUrgent": false
+}
+
+### ================================================================
+### Create Pinned Announcement
+### ================================================================
+POST {{baseUrl}}/classrooms/{{classroomId}}/announcements
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "title": "📌 Course Syllabus and Resources",
+  "content": "The complete course syllabus, lecture slides, and recommended readings are now available on the course portal. Please review the materials before our next class.",
+  "isPinned": true,
+  "isUrgent": false
+}
+
+### ================================================================
+### Create Urgent Announcement
+### ================================================================
+POST {{baseUrl}}/classrooms/{{classroomId}}/announcements
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "title": "🚨 URGENT: Class Canceled Tomorrow",
+  "content": "Tomorrow's class (Feb 3rd) is canceled due to an emergency. We will resume on Thursday. Check your email for the assignment that's been posted instead.",
+  "isPinned": false,
+  "isUrgent": true
+}
+
+### ================================================================
+### Update Announcement (Class Rep Only)
+### ================================================================
+PUT {{baseUrl}}/classrooms/{{classroomId}}/announcements/{{announcementId}}
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "title": "UPDATED: Quiz Rescheduled to Thursday",
+  "content": "Update: The quiz has been moved again to Thursday at 3:00 PM (not Wednesday). Apologies for the confusion. Same topics: Trees, Graphs, Hash Tables.",
+  "isPinned": true,
+  "isUrgent": true
+}
+
+### ================================================================
+### Delete Announcement (Class Rep Only)
+### ================================================================
+DELETE {{baseUrl}}/classrooms/{{classroomId}}/announcements/{{announcementId}}
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Get Classroom Quizzes (Upcoming)
+### ================================================================
+GET {{baseUrl}}/classrooms/{{classroomId}}/quizzes
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Get Classroom Quizzes with Pagination
+### ================================================================
+GET {{baseUrl}}/classrooms/{{classroomId}}/quizzes?page=1&limit=5
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Test Classroom Flow - Complete Workflow
+### ================================================================
+
+### 1. List all classrooms to find your classroom
+# @name listClassrooms
+GET {{baseUrl}}/classrooms
+Authorization: Bearer {{accessToken}}
+
+### Save first classroom ID
+@testClassroomId = {{listClassrooms.response.body.data[0].id}}
+
+### 2. Get classroom details
+GET {{baseUrl}}/classrooms/{{testClassroomId}}
+Authorization: Bearer {{accessToken}}
+
+### 3. View timetable
+GET {{baseUrl}}/classrooms/{{testClassroomId}}/timetable
+Authorization: Bearer {{accessToken}}
+
+### 4. View announcements
+GET {{baseUrl}}/classrooms/{{testClassroomId}}/announcements
+Authorization: Bearer {{accessToken}}
+
+### 5. Create announcement (Class Rep)
+# @name repAnnouncement
+POST {{baseUrl}}/classrooms/{{testClassroomId}}/announcements
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "title": "Week 5 Assignment Reminder",
+  "content": "Don't forget that the Week 5 programming assignment is due this Friday at 11:59 PM. Submit via the course portal. Late submissions will incur a 10% penalty per day.",
+  "isPinned": false,
+  "isUrgent": false
+}
+
+### Save rep announcement ID
+@repAnnouncementId = {{repAnnouncement.response.body.data.id}}
+
+### 6. Update announcement
+PUT {{baseUrl}}/classrooms/{{testClassroomId}}/announcements/{{repAnnouncementId}}
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "title": "Week 5 Assignment Reminder - Extended Deadline",
+  "content": "Good news! The Week 5 programming assignment deadline has been extended to Sunday at 11:59 PM. This gives you extra time to refine your solutions.",
+  "isPinned": true,
+  "isUrgent": false
+}
+
+### 7. View updated announcements
+GET {{baseUrl}}/classrooms/{{testClassroomId}}/announcements
+Authorization: Bearer {{accessToken}}
+
+### 8. Check upcoming quizzes
+GET {{baseUrl}}/classrooms/{{testClassroomId}}/quizzes
+Authorization: Bearer {{accessToken}}
+
+### 9. Delete announcement (cleanup)
+DELETE {{baseUrl}}/classrooms/{{testClassroomId}}/announcements/{{repAnnouncementId}}
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### Error Cases - Classroom Endpoints
+### ================================================================
+
+### Try to create announcement without Class Rep role (should fail with 403)
+POST {{baseUrl}}/classrooms/{{testClassroomId}}/announcements
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "title": "Unauthorized Announcement",
+  "content": "This should fail if user is not a Class Rep"
+}
+
+### Try to get non-existent classroom (should fail with 404)
+GET {{baseUrl}}/classrooms/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{accessToken}}
+
+### Try to create announcement with missing required fields (should fail with 400)
+POST {{baseUrl}}/classrooms/{{testClassroomId}}/announcements
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "title": "Missing Content Field"
+}
+
+### Try to update non-existent announcement (should fail with 404)
+PUT {{baseUrl}}/classrooms/{{testClassroomId}}/announcements/00000000-0000-0000-0000-000000000000
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "title": "This should fail",
+  "content": "Announcement does not exist"
+}
+
+### ================================================================
 ### Additional Tests
 ### ================================================================
 

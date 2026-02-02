@@ -159,15 +159,33 @@ export const createPostValidation = [
     .isLength({ min: 10 })
     .withMessage("Content must be at least 10 characters"),
   body("imageUrl").optional().isURL().withMessage("Invalid image URL"),
-  body("isPinned").optional().isBoolean().withMessage("isPinned must be boolean"),
+  body("isPinned")
+    .optional()
+    .isBoolean()
+    .withMessage("isPinned must be boolean"),
   // Event-specific fields
   body("eventDate").optional().isISO8601().withMessage("Invalid event date"),
-  body("eventTime").optional().matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage("Invalid event time format (HH:MM)"),
-  body("location").optional().isString().withMessage("Location must be a string"),
-  body("capacityMax").optional().isInt({ min: 1 }).withMessage("Capacity must be at least 1"),
-  body("registrationDeadline").optional().isISO8601().withMessage("Invalid registration deadline"),
+  body("eventTime")
+    .optional()
+    .matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    .withMessage("Invalid event time format (HH:MM)"),
+  body("location")
+    .optional()
+    .isString()
+    .withMessage("Location must be a string"),
+  body("capacityMax")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("Capacity must be at least 1"),
+  body("registrationDeadline")
+    .optional()
+    .isISO8601()
+    .withMessage("Invalid registration deadline"),
   body("tags").optional().isArray().withMessage("Tags must be an array"),
-  body("isUrgent").optional().isBoolean().withMessage("isUrgent must be boolean"),
+  body("isUrgent")
+    .optional()
+    .isBoolean()
+    .withMessage("isUrgent must be boolean"),
 ];
 
 export const updatePostValidation = [
@@ -301,6 +319,28 @@ export const classroomIdValidation = [
 export const announcementIdValidation = [
   param("id").isUUID().withMessage("Invalid classroom ID"),
   param("announcementId").isUUID().withMessage("Invalid announcement ID"),
+];
+
+export const createClassroomValidation = [
+  body("yearGroup")
+    .notEmpty()
+    .withMessage("Year group is required")
+    .isLength({ min: 4, max: 4 })
+    .withMessage("Year group must be 4 characters (e.g., 2026)"),
+  body("graduationYear")
+    .notEmpty()
+    .withMessage("Graduation year is required")
+    .isInt({ min: 2020, max: 2100 })
+    .withMessage("Graduation year must be between 2020 and 2100"),
+  body("semester")
+    .notEmpty()
+    .withMessage("Semester is required")
+    .isInt({ min: 1, max: 2 })
+    .withMessage("Semester must be 1 or 2"),
+  body("isActive")
+    .optional()
+    .isBoolean()
+    .withMessage("isActive must be a boolean"),
 ];
 
 export const createAnnouncementValidation = [

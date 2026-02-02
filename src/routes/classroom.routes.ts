@@ -3,15 +3,30 @@ import classroomController from "../controllers/classroom.controller.js";
 import {
   authenticate,
   requireClassRep,
+  requireAdmin,
 } from "../middleware/auth.middleware.js";
 import {
   validate,
   classroomIdValidation,
   announcementIdValidation,
   createAnnouncementValidation,
+  createClassroomValidation,
 } from "../middleware/validation.middleware.js";
 
 const router = Router();
+
+/**
+ * @route   POST /api/v1/classrooms
+ * @desc    Create new classroom (Admin only)
+ * @access  Private (Admin)
+ */
+router.post(
+  "/",
+  authenticate,
+  requireAdmin,
+  validate(createClassroomValidation),
+  classroomController.createClassroom,
+);
 
 /**
  * @route   GET /api/v1/classrooms

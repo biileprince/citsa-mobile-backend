@@ -383,7 +383,13 @@ export const updatePost = asyncHandler(
             where: { id: existingPost.event.id },
           });
         }
-      } else if (data.type === "EVENT" && data.eventDate && data.eventTime && data.location && data.capacityMax) {
+      } else if (
+        data.type === "EVENT" &&
+        data.eventDate &&
+        data.eventTime &&
+        data.location &&
+        data.capacityMax
+      ) {
         // Create new event if changing to EVENT type
         await prisma.event.create({
           data: {
@@ -418,7 +424,11 @@ export const updatePost = asyncHandler(
       },
     });
 
-    sendSuccess(res, transformPost(completePost, userId), "Post updated successfully");
+    sendSuccess(
+      res,
+      transformPost(completePost, userId),
+      "Post updated successfully",
+    );
   },
 );
 
