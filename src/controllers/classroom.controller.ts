@@ -5,6 +5,7 @@ import {
   sendCreated,
   calculatePagination,
   parsePaginationParams,
+  getParamAsString,
 } from "../utils/helpers.js";
 import {
   AuthenticatedRequest,
@@ -58,7 +59,7 @@ export const createClassroom = asyncHandler(
     const existing = await prisma.classroom.findFirst({
       where: {
         yearGroup,
-        semester,
+        semester: semester.toString(),
       },
     });
 
@@ -71,17 +72,13 @@ export const createClassroom = asyncHandler(
     const classroom = await prisma.classroom.create({
       data: {
         yearGroup,
-        graduationYear,
-        semester,
+        graduationYear: graduationYear.toString(),
+        semester: semester.toString(),
         isActive: isActive ?? true,
       },
     });
 
-    sendCreated(
-      res,
-      classroom,
-      "Classroom created successfully",
-    );
+    sendCreated(res, classroom, "Classroom created successfully");
   },
 );
 
@@ -120,7 +117,7 @@ export const getClassrooms = asyncHandler(
  */
 export const getClassroomById = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
 
     const classroom = await prisma.classroom.findUnique({
       where: { id },
@@ -180,7 +177,7 @@ export const getClassroomById = asyncHandler(
  */
 export const getClassroomTimetable = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
 
     const classroom = await prisma.classroom.findUnique({
       where: { id },
@@ -242,7 +239,7 @@ export const getClassroomTimetable = asyncHandler(
  */
 export const getClassroomAnnouncements = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
     const { page, limit } = req.query as { page?: string; limit?: string };
     const pagination = parsePaginationParams(page, limit);
 
@@ -305,7 +302,7 @@ export const getClassroomAnnouncements = asyncHandler(
  */
 export const createAnnouncement = asyncHandler(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
     const userId = req.user!.userId;
     const data = req.body as CreateAnnouncementRequest;
 
@@ -360,7 +357,8 @@ export const createAnnouncement = asyncHandler(
  */
 export const updateAnnouncement = asyncHandler(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { id, announcementId } = req.params;
+    const id = getParamAsString(req.params.id);
+    const announcementId = getParamAsString(req.params.announcementId);
     const userId = req.user!.userId;
     const data = req.body as Partial<CreateAnnouncementRequest>;
 
@@ -428,7 +426,8 @@ export const updateAnnouncement = asyncHandler(
  */
 export const deleteAnnouncement = asyncHandler(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { id, announcementId } = req.params;
+    const id = getParamAsString(req.params.id);
+    const announcementId = getParamAsString(req.params.announcementId);
     const userId = req.user!.userId;
 
     // Check announcement exists
@@ -466,7 +465,7 @@ export const deleteAnnouncement = asyncHandler(
  */
 export const getClassroomQuizzes = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
     const { page, limit } = req.query as { page?: string; limit?: string };
     const pagination = parsePaginationParams(page, limit);
 

@@ -6,6 +6,7 @@ import {
   safeJsonParse,
   calculatePagination,
   parsePaginationParams,
+  getParamAsString,
 } from "../utils/helpers.js";
 import {
   AuthenticatedRequest,
@@ -65,7 +66,7 @@ export const getMyProfile = asyncHandler(
  */
 export const getUserProfile = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const { userId } = req.params;
+    const userId = getParamAsString(req.params.userId);
 
     const user = await prisma.user.findUnique({
       where: { id: userId },

@@ -7,6 +7,7 @@ import {
   safeJsonParse,
   calculatePagination,
   parsePaginationParams,
+  getParamAsString,
 } from "../utils/helpers.js";
 import {
   AuthenticatedRequest,
@@ -147,7 +148,7 @@ export const getPosts = asyncHandler(
  */
 export const getPostById = asyncHandler(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
     const userId = req.user?.userId;
 
     const post = await prisma.post.findUnique({
@@ -244,6 +245,19 @@ export const createPost = asyncHandler(
     const userId = req.user!.userId;
     const data = req.body as CreatePostRequest;
 
+    // Handle image upload if file is provided
+    let imageUrl = data.imageUrl; // Fallback to URL if provided
+    if (req.file) {
+      const uploadResult = await uploadFile(
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype,
+        "post",
+        userId,
+      );
+      imageUrl = uploadResult.url;
+    }
+
     // Create post
     const post = await prisma.post.create({
       data: {
@@ -252,7 +266,7 @@ export const createPost = asyncHandler(
         category: data.category,
         title: data.title,
         content: data.content,
-        imageUrl: data.imageUrl,
+        imageUrl: imageUrl,
         isPinned: data.isPinned || false,
       },
       include: {
@@ -321,7 +335,7 @@ export const createPost = asyncHandler(
  */
 export const updatePost = asyncHandler(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
     const userId = req.user!.userId;
     const data = req.body;
 
@@ -335,6 +349,19 @@ export const updatePost = asyncHandler(
       throw ApiError.notFound("Post not found");
     }
 
+    // Handle image upload if file is provided
+    let imageUrl = data.imageUrl; // Keep existing or use provided URL
+    if (req.file) {
+      const uploadResult = await uploadFile(
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype,
+        "post",
+        userId,
+      );
+      imageUrl = uploadResult.url;
+    }
+
     // Update post
     const post = await prisma.post.update({
       where: { id },
@@ -343,7 +370,7 @@ export const updatePost = asyncHandler(
         category: data.category,
         title: data.title,
         content: data.content,
-        imageUrl: data.imageUrl,
+        imageUrl: imageUrl,
         isPinned: data.isPinned,
       },
       include: {
@@ -438,7 +465,7 @@ export const updatePost = asyncHandler(
  */
 export const likePost = asyncHandler(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
     const userId = req.user!.userId;
 
     // Check if post exists
@@ -507,7 +534,7 @@ export const likePost = asyncHandler(
  */
 export const unlikePost = asyncHandler(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
     const userId = req.user!.userId;
 
     // Delete like and decrement count
@@ -536,7 +563,7 @@ export const unlikePost = asyncHandler(
  */
 export const addComment = asyncHandler(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
     const userId = req.user!.userId;
     const { content, parentCommentId } = req.body as CreateCommentRequest;
 
@@ -620,7 +647,7 @@ export const addComment = asyncHandler(
  */
 export const savePost = asyncHandler(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
     const userId = req.user!.userId;
 
     // Check if post exists
@@ -654,7 +681,7 @@ export const savePost = asyncHandler(
  */
 export const unsavePost = asyncHandler(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
     const userId = req.user!.userId;
 
     await prisma.savedPost.deleteMany({
@@ -671,7 +698,7 @@ export const unsavePost = asyncHandler(
  */
 export const sharePost = asyncHandler(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
     const userId = req.user!.userId;
 
     // Check if post exists

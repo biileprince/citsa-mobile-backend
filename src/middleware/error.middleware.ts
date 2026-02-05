@@ -79,7 +79,10 @@ export function errorHandler(
 
   // Handle Prisma errors
   if (err.name === "PrismaClientKnownRequestError") {
-    const prismaError = err as { code: string; meta?: { target?: string[] } };
+    const prismaError = err as unknown as {
+      code: string;
+      meta?: { target?: string[] };
+    };
 
     logger.error(`Prisma error ${prismaError.code}:`, {
       code: prismaError.code,

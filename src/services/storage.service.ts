@@ -29,6 +29,7 @@ const MAX_FILE_SIZE = {
   avatar: 5 * 1024 * 1024, // 5MB
   post: 10 * 1024 * 1024, // 10MB
   event: 10 * 1024 * 1024, // 10MB
+  group: 10 * 1024 * 1024, // 10MB
 };
 
 export type UploadType = "avatar" | "post" | "event" | "group";
@@ -91,8 +92,7 @@ export async function uploadFile(
       Key: key,
       Body: buffer,
       ContentType: mimeType,
-      // Make objects publicly readable
-      ACL: "public-read",
+      // Note: ACL removed - configure bucket policy for public access instead
     });
 
     await s3Client.send(command);

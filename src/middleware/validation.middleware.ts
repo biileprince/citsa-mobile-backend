@@ -292,7 +292,13 @@ export const eventQueryValidation = [
 // ==================== GROUP VALIDATIONS ====================
 
 export const groupIdValidation = [
-  param("id").isUUID().withMessage("Invalid group ID"),
+  param("id")
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage("Group ID is required")
+    .isLength({ min: 1, max: 100 })
+    .withMessage("Invalid group ID format"),
 ];
 
 export const groupQueryValidation = [
@@ -367,7 +373,13 @@ export const createAnnouncementValidation = [
 // ==================== NOTIFICATION VALIDATIONS ====================
 
 export const notificationIdValidation = [
-  param("id").isUUID().withMessage("Invalid notification ID"),
+  param("id")
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage("Notification ID is required")
+    .isLength({ min: 1, max: 100 })
+    .withMessage("Invalid notification ID format"),
 ];
 
 export const notificationQueryValidation = [

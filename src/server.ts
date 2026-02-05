@@ -78,3 +78,6 @@ async function startServer() {
 }
 
 startServer();
+
+// Export for serverless platforms (Vercel, AWS Lambda, etc.)
+export default app;

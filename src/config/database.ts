@@ -1,19 +1,24 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 
-// Create a global prisma instance to prevent multiple connections in development
+// Create a global prisma instance to prevent multiple connections
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-// Build adapter configuration for TiDB Cloud
+// Serverless-optimized adapter configuration
 const adapterConfig: any = {
   host: process.env.DATABASE_HOST || "localhost",
   port: parseInt(process.env.DATABASE_PORT || "3306", 10),
   user: process.env.DATABASE_USER || "root",
   password: process.env.DATABASE_PASSWORD || "",
   database: process.env.DATABASE_NAME || "citsa_db",
-  connectionLimit: 5,
+  // Serverless connection limits (lower for better cold start)
+  connectionLimit: process.env.NODE_ENV === "production" ? 3 : 5,
+  // Prevent connection timeout in serverless
+  connectTimeout: 10000,
+  acquireTimeout: 10000,
+  timeout: 60000,
 };
 
 // Add SSL for TiDB Cloud (port 4000 indicates TiDB)
@@ -35,8 +40,12 @@ export const prisma =
         : ["error"],
   });
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+// Cache instance globally in all environments for serverless
+globalForPrisma.prisma = prisma;
+
+// Graceful shutdown handler
+export async function disconnectPrisma() {
+  await prisma.$disconnect();
 }
 
 export default prisma;

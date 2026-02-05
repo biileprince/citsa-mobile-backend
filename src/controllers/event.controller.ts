@@ -5,6 +5,7 @@ import {
   safeJsonParse,
   calculatePagination,
   parsePaginationParams,
+  getParamAsString,
 } from "../utils/helpers.js";
 import {
   AuthenticatedRequest,
@@ -132,7 +133,7 @@ export const getEvents = asyncHandler(
  */
 export const getEventById = asyncHandler(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
     const userId = req.user?.userId;
 
     const event = await prisma.event.findUnique({
@@ -176,7 +177,7 @@ export const getEventById = asyncHandler(
  */
 export const registerForEvent = asyncHandler(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
     const userId = req.user!.userId;
 
     // Fetch event with current registration count
@@ -305,7 +306,7 @@ export const registerForEvent = asyncHandler(
  */
 export const cancelRegistration = asyncHandler(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
     const userId = req.user!.userId;
 
     // Check registration exists

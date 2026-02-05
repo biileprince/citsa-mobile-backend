@@ -202,6 +202,8 @@ export const ErrorCodes = {
 
   // Resource errors
   NOT_FOUND: "NOT_FOUND",
+  USER_NOT_FOUND: "USER_NOT_FOUND",
+  USER_INACTIVE: "USER_INACTIVE",
   ALREADY_EXISTS: "ALREADY_EXISTS",
   CONFLICT: "CONFLICT",
 

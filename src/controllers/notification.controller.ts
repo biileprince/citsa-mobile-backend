@@ -4,6 +4,7 @@ import {
   sendSuccess,
   calculatePagination,
   parsePaginationParams,
+  getParamAsString,
 } from "../utils/helpers.js";
 import {
   AuthenticatedRequest,
@@ -90,7 +91,7 @@ export const getUnreadCount = asyncHandler(
  */
 export const markAsRead = asyncHandler(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
     const userId = req.user!.userId;
 
     const notification = await prisma.notification.findUnique({
@@ -139,7 +140,7 @@ export const markAllAsRead = asyncHandler(
  */
 export const deleteNotification = asyncHandler(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
     const userId = req.user!.userId;
 
     const notification = await prisma.notification.findUnique({
