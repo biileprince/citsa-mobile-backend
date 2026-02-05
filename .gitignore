@@ -34,11 +34,23 @@ coverage/
 tmp/
 temp/
 uploads/
-test-complete-flow.js
-test-db-connection.js
-test-email.js
-update-email.js
-test-tidb.js
+
+# Test scripts (kept locally, not in repo)
+test-*.js
+run-*-test.js
+check-ip-and-test.js
+
+# Documentation files (generated during testing)
+*_TESTING*.md
+*_GUIDE.md
+*_SETUP*.md
+*_COMPLETE.md
+TESTING_QUICK_START.md
+AWS_S3_SETUP_REQUIRED.md
+
+VERCEL_DEPLOYMENT.md
 swap-emails.js
-test-feed-complete.js
+test-invalid.txt
 update-admin-email.js
+update-email.js
+.env.vercel.example

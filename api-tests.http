@@ -899,3 +899,340 @@ Content-Type: application/json
 {
   "studentId": "PS/ITC/23/0201"
 }
+### ================================================================
+### USER PROFILE ENDPOINTS - Complete Testing Suite
+### ================================================================
+
+### ----------------------------------------------------------------
+### 1. Get Current User Profile (Must be authenticated)
+### ----------------------------------------------------------------
+GET {{baseUrl}}/users/profile
+Authorization: Bearer {{accessToken}}
+
+### ----------------------------------------------------------------
+### 2. Get User Profile by ID (Public with optional auth)
+### Replace with actual user ID from database
+### ----------------------------------------------------------------
+# @name getUserById
+GET {{baseUrl}}/users/profile/12345678-1234-1234-1234-123456789abc
+Authorization: Bearer {{accessToken}}
+
+### Get User Profile by ID (Unauthenticated - email masked)
+GET {{baseUrl}}/users/profile/12345678-1234-1234-1234-123456789abc
+
+### ----------------------------------------------------------------
+### 3. Setup Profile (First time setup after registration)
+### This is called after initial OTP verification when needsProfileSetup is true
+### ----------------------------------------------------------------
+POST {{baseUrl}}/users/profile/setup
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Kwame Mensah",
+  "bio": "Computer Science student passionate about AI and web development",
+  "program": "Information Technology",
+  "classYear": "2026",
+  "skills": ["JavaScript", "Python", "React", "Node.js", "Machine Learning"],
+  "interests": ["AI/ML", "Web Development", "Mobile Apps", "Cybersecurity"],
+  "portfolioUrl": "https://kwamemensah.dev"
+}
+
+### Setup Profile - Minimal (Only required fields)
+POST {{baseUrl}}/users/profile/setup
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Ama Osei"
+}
+
+### ----------------------------------------------------------------
+### 4. Update Profile (Update existing profile information)
+### ----------------------------------------------------------------
+PUT {{baseUrl}}/users/profile
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Kwame Mensah Jr.",
+  "bio": "Final year CS student | Full-stack Developer | AI Enthusiast",
+  "program": "Computer Science",
+  "classYear": "2026",
+  "skills": ["JavaScript", "TypeScript", "Python", "React", "Node.js", "AWS", "Docker"],
+  "interests": ["AI/ML", "Cloud Computing", "DevOps", "Open Source"],
+  "portfolioUrl": "https://kwamemensah.com"
+}
+
+### Update Profile - Partial Update
+PUT {{baseUrl}}/users/profile
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "bio": "Updated bio - Software Engineer in the making!",
+  "portfolioUrl": "https://github.com/kwamemensah"
+}
+
+### ----------------------------------------------------------------
+### 5. Upload Avatar (Profile Picture)
+### NOTE: REST Client doesn't support file uploads well
+### Use Postman, Insomnia, or curl for actual file upload testing
+### ----------------------------------------------------------------
+
+### cURL Example for Avatar Upload (Run in terminal):
+### curl -X POST http://localhost:3000/api/v1/users/avatar \
+###   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+###   -F "avatar=@/path/to/your/image.jpg"
+
+### PowerShell Example for Avatar Upload:
+### $headers = @{ "Authorization" = "Bearer YOUR_ACCESS_TOKEN" }
+### $uri = "http://localhost:3000/api/v1/users/avatar"
+### $filePath = "C:\path\to\image.jpg"
+### Invoke-WebRequest -Uri $uri -Method POST -Headers $headers -InFile $filePath -ContentType "multipart/form-data"
+
+### ----------------------------------------------------------------
+### 6. Delete Avatar
+### ----------------------------------------------------------------
+DELETE {{baseUrl}}/users/avatar
+Authorization: Bearer {{accessToken}}
+
+### ----------------------------------------------------------------
+### 7. Search Users
+### ----------------------------------------------------------------
+
+### Search by name
+GET {{baseUrl}}/users/search?q=Kwame
+Authorization: Bearer {{accessToken}}
+
+### Search by student ID
+GET {{baseUrl}}/users/search?q=PS/ITC/22
+Authorization: Bearer {{accessToken}}
+
+### Search by program
+GET {{baseUrl}}/users/search?q=Computer Science
+Authorization: Bearer {{accessToken}}
+
+### Search with pagination
+GET {{baseUrl}}/users/search?q=Student&page=1&limit=10
+Authorization: Bearer {{accessToken}}
+
+### Get all users (no search query)
+GET {{baseUrl}}/users/search?page=1&limit=20
+Authorization: Bearer {{accessToken}}
+
+### ----------------------------------------------------------------
+### Profile Testing - Error Cases
+### ----------------------------------------------------------------
+
+### Setup Profile - Missing required field (should fail)
+POST {{baseUrl}}/users/profile/setup
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "bio": "Missing fullName"
+}
+
+### Setup Profile - Invalid year format (should fail)
+POST {{baseUrl}}/users/profile/setup
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Test User",
+  "classYear": "20266"
+}
+
+### Update Profile - Invalid data type (should fail)
+PUT {{baseUrl}}/users/profile
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "skills": "Should be an array, not a string"
+}
+
+### Get Profile - Unauthenticated (should fail)
+GET {{baseUrl}}/users/profile
+
+### Upload Avatar - No file provided (should fail)
+### This would fail in actual implementation
+
+### Get Non-existent User Profile (should return 404)
+GET {{baseUrl}}/users/profile/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{accessToken}}
+
+### ================================================================
+### GROUPS & CLUBS ENDPOINTS (7 total)
+### ================================================================
+
+### Get All Groups (Public - No Auth Required)
+GET {{baseUrl}}/groups
+Content-Type: application/json
+
+### Get All Groups with Pagination
+GET {{baseUrl}}/groups?page=1&limit=5
+Content-Type: application/json
+
+### Get All Groups with Search
+GET {{baseUrl}}/groups?search=Tech
+Content-Type: application/json
+
+### Get All Groups by Category
+GET {{baseUrl}}/groups?category=Technology
+Content-Type: application/json
+
+### Get Groups - Authenticated (shows membership status)
+GET {{baseUrl}}/groups
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+### Get Group Categories (Public)
+GET {{baseUrl}}/groups/categories
+Content-Type: application/json
+
+### Get My Groups (Private - Auth Required)
+GET {{baseUrl}}/groups/my-groups
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+### Get My Groups with Pagination
+GET {{baseUrl}}/groups/my-groups?page=1&limit=10
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+### Get Group by ID (Public - No Auth Required)
+### Replace {groupId} with actual group ID from previous response
+GET {{baseUrl}}/groups/{groupId}
+Content-Type: application/json
+
+### Get Group by ID - Authenticated (shows your role)
+### Replace {groupId} with actual group ID
+GET {{baseUrl}}/groups/{groupId}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+### Get Group Members (Public)
+### Replace {groupId} with actual group ID
+GET {{baseUrl}}/groups/{groupId}/members
+Content-Type: application/json
+
+### Get Group Members with Pagination
+### Replace {groupId} with actual group ID
+GET {{baseUrl}}/groups/{groupId}/members?page=1&limit=20
+Content-Type: application/json
+
+### Join a Group (Private - Auth Required)
+### Replace {groupId} with actual group ID
+POST {{baseUrl}}/groups/{groupId}/join
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+### Leave a Group (Private - Auth Required)
+### Replace {groupId} with actual group ID
+DELETE {{baseUrl}}/groups/{groupId}/join
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+### ================================================================
+### GROUPS & CLUBS - ERROR CASES
+### ================================================================
+
+### Join Group without Authentication (should fail)
+POST {{baseUrl}}/groups/{groupId}/join
+Content-Type: application/json
+
+### Get Non-existent Group (should return 404)
+GET {{baseUrl}}/groups/00000000-0000-0000-0000-000000000000
+Content-Type: application/json
+
+### Get Members of Non-existent Group (should return 404)
+GET {{baseUrl}}/groups/00000000-0000-0000-0000-000000000000/members
+Content-Type: application/json
+
+### Join Non-existent Group (should return 404)
+POST {{baseUrl}}/groups/00000000-0000-0000-0000-000000000000/join
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+### Join Same Group Twice (should return 409 Conflict)
+### Run this after successfully joining a group
+POST {{baseUrl}}/groups/{groupId}/join
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+### Leave Group You're Not a Member Of (should return 404)
+DELETE {{baseUrl}}/groups/{groupId}/join
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+### ================================================================
+### NOTIFICATIONS ENDPOINTS (6 total)
+### All notification endpoints require authentication
+### ================================================================
+
+### Get All Notifications
+GET {{baseUrl}}/notifications
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+### Get Notifications with Pagination
+GET {{baseUrl}}/notifications?page=1&limit=10
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+### Get Unread Notifications Only
+GET {{baseUrl}}/notifications?unreadOnly=true
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+### Get Unread Notifications with Pagination
+GET {{baseUrl}}/notifications?unreadOnly=true&page=1&limit=5
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+### Get Unread Count
+GET {{baseUrl}}/notifications/unread-count
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+### Mark Notification as Read
+### Replace {notificationId} with actual notification ID
+PUT {{baseUrl}}/notifications/{notificationId}/read
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+### Mark All Notifications as Read
+PUT {{baseUrl}}/notifications/read-all
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+### Delete a Notification
+### Replace {notificationId} with actual notification ID
+DELETE {{baseUrl}}/notifications/{notificationId}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+### Clear All Read Notifications
+DELETE {{baseUrl}}/notifications/clear-read
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+### ================================================================
+### NOTIFICATIONS - ERROR CASES
+### ================================================================
+
+### Get Notifications without Authentication (should fail)
+GET {{baseUrl}}/notifications
+Content-Type: application/json
+
+### Mark Non-existent Notification as Read (should return 404)
+PUT {{baseUrl}}/notifications/00000000-0000-0000-0000-000000000000/read
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+### Delete Non-existent Notification (should return 404)
+DELETE {{baseUrl}}/notifications/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json

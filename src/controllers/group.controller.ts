@@ -4,6 +4,7 @@ import {
   sendSuccess,
   calculatePagination,
   parsePaginationParams,
+  getParamAsString,
 } from "../utils/helpers.js";
 import { AuthenticatedRequest, GroupQueryParams } from "../types/index.js";
 import { asyncHandler, ApiError } from "../middleware/error.middleware.js";
@@ -93,7 +94,7 @@ export const getGroups = asyncHandler(
  */
 export const getGroupById = asyncHandler(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
     const userId = req.user?.userId;
 
     const group = await prisma.group.findUnique({
@@ -122,7 +123,7 @@ export const getGroupById = asyncHandler(
  */
 export const getGroupMembers = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
     const { page, limit } = req.query as { page?: string; limit?: string };
     const pagination = parsePaginationParams(page, limit);
 
@@ -180,7 +181,7 @@ export const getGroupMembers = asyncHandler(
  */
 export const joinGroup = asyncHandler(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
     const userId = req.user!.userId;
 
     // Check if group exists
@@ -244,7 +245,7 @@ export const joinGroup = asyncHandler(
  */
 export const leaveGroup = asyncHandler(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { id } = req.params;
+    const id = getParamAsString(req.params.id);
     const userId = req.user!.userId;
 
     // Check membership exists

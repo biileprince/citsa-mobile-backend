@@ -8,5 +8,13 @@ export default defineConfig({
   },
   datasource: {
     url: env("DATABASE_URL"),
+    // Shadow database is optional - only needed for migrations
+    ...(process.env.SHADOW_DATABASE_URL && {
+      shadowDatabaseUrl: env("SHADOW_DATABASE_URL"),
+    }),
+  },
+  generator: {
+    // Optimize for serverless deployment
+    output: "../node_modules/.prisma/client",
   },
 });

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import multer from "multer";
 import feedController from "../controllers/feed.controller.js";
 import {
   authenticate,
@@ -13,8 +14,29 @@ import {
   postQueryValidation,
   createCommentValidation,
 } from "../middleware/validation.middleware.js";
+import { uploadLimiter } from "../middleware/rateLimit.middleware.js";
 
 const router = Router();
+
+// Configure multer for post images
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB for posts
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(
+        new Error(
+          "Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.",
+        ),
+      );
+    }
+  },
+});
 
 /**
  * @route   GET /api/v1/feed/posts
@@ -49,26 +71,30 @@ router.get(
 
 /**
  * @route   POST /api/v1/feed/posts
- * @desc    Create new post (Admin only)
+ * @desc    Create new post (Admin only) - with optional image upload
  * @access  Private (Admin)
  */
 router.post(
   "/posts",
   authenticate,
   requireAdmin,
+  uploadLimiter,
+  upload.single("image"),
   validate(createPostValidation),
   feedController.createPost,
 );
 
 /**
  * @route   PUT /api/v1/feed/posts/:id
- * @desc    Update existing post (Admin only)
+ * @desc    Update existing post (Admin only) - with optional image upload
  * @access  Private (Admin)
  */
 router.put(
   "/posts/:id",
   authenticate,
   requireAdmin,
+  uploadLimiter,
+  upload.single("image"),
   validate([...postIdValidation, ...updatePostValidation]),
   feedController.updatePost,
 );
