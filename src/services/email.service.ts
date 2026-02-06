@@ -2,16 +2,32 @@ import nodemailer from "nodemailer";
 import config from "../config/index.js";
 import logger from "../utils/logger.js";
 
-// Create transporter
+// Create transporter with robust configuration
+// Port 465 = implicit SSL (secure: true)
+// Port 587 = STARTTLS (secure: false, upgrades via STARTTLS)
+// Port 25  = plain (no encryption, often blocked)
+const isImplicitSSL = config.smtp.port === 465;
+
 const transporter = nodemailer.createTransport({
   host: config.smtp.host,
   port: config.smtp.port,
-  secure: config.smtp.secure,
+  secure: isImplicitSSL, // true for 465, false for 587/25 (STARTTLS)
   auth: {
     user: config.smtp.user,
     pass: config.smtp.password,
   },
+  tls: {
+    // cPanel/shared hosting often uses self-signed or non-standard certs
+    rejectUnauthorized: false,
+    minVersion: "TLSv1.2",
+  },
+  connectionTimeout: 15000, // 15s to establish connection
+  greetingTimeout: 15000,   // 15s for server greeting
+  socketTimeout: 30000,     // 30s for socket inactivity
+  ...((!isImplicitSSL && config.smtp.port === 587) ? { requireTLS: true } : {}),
 });
+
+logger.info(`SMTP configured: ${config.smtp.host}:${config.smtp.port} (${isImplicitSSL ? "SSL" : "STARTTLS"})`);
 
 /**
  * Send OTP email to user
