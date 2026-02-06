@@ -11,14 +11,15 @@ COPY package*.json ./
 COPY prisma.config.ts ./
 COPY prisma ./prisma/
 
-# Install dependencies (including devDependencies for build)
-RUN npm ci
+# Install dependencies (skip postinstall to avoid DATABASE_URL requirement)
+RUN npm ci --ignore-scripts
 
 # Copy source code
 COPY tsconfig.json ./
 COPY src ./src
 
-# Generate Prisma client (with TiDB/MariaDB adapter support)
+# Generate Prisma client with dummy DATABASE_URL (only needed for generation, not actual connection)
+ENV DATABASE_URL="mysql://user:pass@localhost:3306/db"
 RUN npx prisma generate
 
 # Build TypeScript
@@ -37,10 +38,11 @@ COPY package*.json ./
 COPY prisma.config.ts ./
 COPY prisma ./prisma/
 
-# Install production dependencies only
-RUN npm ci --only=production
+# Install production dependencies only (skip postinstall)
+RUN npm ci --only=production --ignore-scripts
 
-# Generate Prisma client
+# Generate Prisma client with dummy DATABASE_URL (only for generation)
+ENV DATABASE_URL="mysql://user:pass@localhost:3306/db"
 RUN npx prisma generate
 
 # Copy built files from builder
@@ -48,6 +50,9 @@ COPY --from=builder /app/dist ./dist
 
 # Create logs directory
 RUN mkdir -p logs
+
+# Unset the dummy DATABASE_URL (real one will come from Render environment)
+ENV DATABASE_URL=""
 
 # Set environment (will be overridden by Render env vars)
 ENV NODE_ENV=production
