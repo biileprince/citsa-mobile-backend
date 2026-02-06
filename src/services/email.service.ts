@@ -2,7 +2,7 @@ import nodemailer from "nodemailer";
 import config from "../config/index.js";
 import logger from "../utils/logger.js";
 
-// Create transporter with extended timeout and retry logic
+// Create transporter
 const transporter = nodemailer.createTransport({
   host: config.smtp.host,
   port: config.smtp.port,
@@ -11,14 +11,6 @@ const transporter = nodemailer.createTransport({
     user: config.smtp.user,
     pass: config.smtp.password,
   },
-  // Extended timeouts for slow/unreliable SMTP servers
-  connectionTimeout: 60000, // 60 seconds
-  greetingTimeout: 30000, // 30 seconds
-  socketTimeout: 60000, // 60 seconds
-  // Retry options
-  pool: true,
-  maxConnections: 5,
-  maxMessages: 100,
 });
 
 /**
@@ -210,17 +202,11 @@ export async function sendEventReminderEmail(
 }
 
 /**
- * Verify SMTP connection with extended timeout
+ * Verify SMTP connection
  */
 export async function verifyEmailConnection(): Promise<boolean> {
   try {
-    // Use a Promise with timeout to prevent hanging
-    const verifyPromise = transporter.verify();
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Verification timeout")), 10000)
-    );
-    
-    await Promise.race([verifyPromise, timeoutPromise]);
+    await transporter.verify();
     logger.info("SMTP connection verified successfully");
     return true;
   } catch (error) {
