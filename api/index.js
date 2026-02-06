@@ -1,4 +1,5 @@
 // Vercel Serverless Function Entry Point
-import app from '../dist/app.js';
+// This file is at /api/index.js and imports the compiled Express app
+const app = require('../dist/app.js').default;
 
-export default app;
+module.exports = app;
