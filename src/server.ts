@@ -30,13 +30,19 @@ async function startServer() {
 
     // Verify email configuration (optional - don't fail if email is not configured)
     if (config.smtp.user && config.smtp.password) {
+      logger.info(`📧 Testing SMTP: ${config.smtp.host}:${config.smtp.port} as ${config.smtp.user}`);
       const emailConnected = await verifyEmailConnection();
       if (emailConnected) {
         logger.info("✅ Email service connected successfully");
       } else {
         logger.warn(
-          "⚠️ Email service connection failed - OTP emails will not work",
+          `⚠️ Email service connection failed on port ${config.smtp.port} - OTP emails will not work`,
         );
+        if (config.smtp.port === 465) {
+          logger.warn(
+            "💡 Tip: Port 465 is often blocked on cloud platforms. Try SMTP_PORT=587 with SMTP_SECURE=false",
+          );
+        }
       }
     } else {
       logger.warn(
