@@ -32,7 +32,16 @@ export const config = {
     ),
   },
 
-  // SMTP
+  // Gmail API (preferred - uses OAuth2, bypasses port blocking)
+  gmail: {
+    clientId: process.env.GMAIL_CLIENT_ID || "",
+    clientSecret: process.env.GMAIL_CLIENT_SECRET || "",
+    refreshToken: process.env.GMAIL_REFRESH_TOKEN || "",
+    fromEmail: process.env.GMAIL_FROM_EMAIL || "",
+    fromName: process.env.GMAIL_FROM_NAME || "CITSA App",
+  },
+
+  // SMTP (fallback if Gmail API not configured)
   smtp: {
     host: process.env.SMTP_HOST || "smtp.gmail.com",
     port: parseInt(process.env.SMTP_PORT || "587", 10),

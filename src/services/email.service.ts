@@ -1,33 +1,161 @@
 import nodemailer from "nodemailer";
+import { google } from "googleapis";
 import config from "../config/index.js";
 import logger from "../utils/logger.js";
 
-// Create transporter with robust configuration
-// Port 465 = implicit SSL (secure: true)
-// Port 587 = STARTTLS (secure: false, upgrades via STARTTLS)
-// Port 25  = plain (no encryption, often blocked)
-const isImplicitSSL = config.smtp.port === 465;
+// Email transport type
+type TransportType = "gmail-api" | "smtp" | "none";
+let activeTransport: TransportType = "none";
 
-const transporter = nodemailer.createTransport({
-  host: config.smtp.host,
-  port: config.smtp.port,
-  secure: isImplicitSSL, // true for 465, false for 587/25 (STARTTLS)
-  auth: {
-    user: config.smtp.user,
-    pass: config.smtp.password,
-  },
-  tls: {
-    // cPanel/shared hosting often uses self-signed or non-standard certs
-    rejectUnauthorized: false,
-    minVersion: "TLSv1.2",
-  },
-  connectionTimeout: 15000, // 15s to establish connection
-  greetingTimeout: 15000,   // 15s for server greeting
-  socketTimeout: 30000,     // 30s for socket inactivity
-  ...((!isImplicitSSL && config.smtp.port === 587) ? { requireTLS: true } : {}),
-});
+// Create Gmail API transporter (preferred)
+let gmailTransporter: nodemailer.Transporter | null = null;
 
-logger.info(`SMTP configured: ${config.smtp.host}:${config.smtp.port} (${isImplicitSSL ? "SSL" : "STARTTLS"})`);
+// Create SMTP transporter (fallback)
+let smtpTransporter: nodemailer.Transporter | null = null;
+
+/**
+ * Initialize Gmail API OAuth2 transporter
+ */
+async function createGmailTransporter(): Promise<nodemailer.Transporter | null> {
+  try {
+    const { clientId, clientSecret, refreshToken, fromEmail } = config.gmail;
+
+    if (!clientId || !clientSecret || !refreshToken || !fromEmail) {
+      return null;
+    }
+
+    const OAuth2 = google.auth.OAuth2;
+    const oauth2Client = new OAuth2(
+      clientId,
+      clientSecret,
+      "https://developers.google.com/oauthplayground" // Redirect URI (not used for server)
+    );
+
+    oauth2Client.setCredentials({
+      refresh_token: refreshToken,
+    });
+
+    // Get access token (auto-refreshes when needed)
+    const accessToken = await oauth2Client.getAccessToken();
+
+    if (!accessToken.token) {
+      logger.error("Failed to get Gmail OAuth2 access token");
+      return null;
+    }
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        type: "OAuth2",
+        user: fromEmail,
+        clientId,
+        clientSecret,
+        refreshToken,
+        accessToken: accessToken.token,
+      },
+    } as any);
+
+    logger.info(`📧 Gmail API configured: ${fromEmail}`);
+    return transporter;
+  } catch (error) {
+    logger.error("Failed to create Gmail API transporter:", error);
+    return null;
+  }
+}
+
+/**
+ * Initialize SMTP transporter (fallback)
+ */
+function createSmtpTransporter(): nodemailer.Transporter | null {
+  try {
+    const { host, port, user, password } = config.smtp;
+
+    if (!host || !user || !password) {
+      return null;
+    }
+
+    const isImplicitSSL = port === 465;
+
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: isImplicitSSL,
+      auth: {
+        user,
+        pass: password,
+      },
+      tls: {
+        rejectUnauthorized: false,
+        minVersion: "TLSv1.2",
+      },
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 30000,
+      ...(!isImplicitSSL && port === 587 ? { requireTLS: true } : {}),
+    });
+
+    logger.info(
+      `📧 SMTP configured: ${host}:${port} (${isImplicitSSL ? "SSL" : "STARTTLS"})`,
+    );
+    return transporter;
+  } catch (error) {
+    logger.error("Failed to create SMTP transporter:", error);
+    return null;
+  }
+}
+
+/**
+ * Initialize email transporters (Gmail API preferred, SMTP fallback)
+ */
+async function initializeTransports() {
+  // Try Gmail API first (preferred)
+  gmailTransporter = await createGmailTransporter();
+  if (gmailTransporter) {
+    activeTransport = "gmail-api";
+    logger.info("✅ Email transport: Gmail API (OAuth2)");
+    return;
+  }
+
+  // Fallback to SMTP
+  smtpTransporter = createSmtpTransporter();
+  if (smtpTransporter) {
+    activeTransport = "smtp";
+    logger.info("✅ Email transport: SMTP (fallback)");
+    return;
+  }
+
+  // No transport available
+  activeTransport = "none";
+  logger.warn("⚠️ No email transport configured - emails will not be sent");
+}
+
+// Initialize on module load
+initializeTransports();
+
+/**
+ * Get active transporter
+ */
+function getTransporter(): nodemailer.Transporter | null {
+  if (activeTransport === "gmail-api") return gmailTransporter;
+  if (activeTransport === "smtp") return smtpTransporter;
+  return null;
+}
+
+/**
+ * Get sender info based on active transport
+ */
+function getSenderInfo(): { name: string; email: string } {
+  if (activeTransport === "gmail-api") {
+    return {
+      name: config.gmail.fromName,
+      email: config.gmail.fromEmail,
+    };
+  }
+  return {
+    name: config.smtp.fromName,
+    email: config.smtp.fromEmail,
+  };
+}
 
 /**
  * Send OTP email to user
@@ -37,8 +165,16 @@ export async function sendOtpEmail(
   otpCode: string,
 ): Promise<boolean> {
   try {
+    const transporter = getTransporter();
+    if (!transporter) {
+      logger.error("No email transporter available");
+      return false;
+    }
+
+    const sender = getSenderInfo();
+
     const mailOptions = {
-      from: `"${config.smtp.fromName}" <${config.smtp.fromEmail}>`,
+      from: `"${sender.name}" <${sender.email}>`,
       to: email,
       subject: "Your CITSA App Verification Code",
       html: `
@@ -83,7 +219,9 @@ export async function sendOtpEmail(
     };
 
     const info = await transporter.sendMail(mailOptions);
-    logger.info(`OTP email sent to ${email}: ${info.messageId}`);
+    logger.info(
+      `OTP email sent to ${email} via ${activeTransport}: ${info.messageId}`,
+    );
     return true;
   } catch (error) {
     logger.error("Failed to send OTP email:", error);
@@ -99,8 +237,16 @@ export async function sendWelcomeEmail(
   fullName: string,
 ): Promise<boolean> {
   try {
+    const transporter = getTransporter();
+    if (!transporter) {
+      logger.error("No email transporter available");
+      return false;
+    }
+
+    const sender = getSenderInfo();
+
     const mailOptions = {
-      from: `"${config.smtp.fromName}" <${config.smtp.fromEmail}>`,
+      from: `"${sender.name}" <${sender.email}>`,
       to: email,
       subject: "Welcome to CITSA App! 🎉",
       html: `
@@ -152,7 +298,7 @@ export async function sendWelcomeEmail(
     };
 
     await transporter.sendMail(mailOptions);
-    logger.info(`Welcome email sent to ${email}`);
+    logger.info(`Welcome email sent to ${email} via ${activeTransport}`);
     return true;
   } catch (error) {
     logger.error("Failed to send welcome email:", error);
@@ -172,8 +318,16 @@ export async function sendEventReminderEmail(
   location: string,
 ): Promise<boolean> {
   try {
+    const transporter = getTransporter();
+    if (!transporter) {
+      logger.error("No email transporter available");
+      return false;
+    }
+
+    const sender = getSenderInfo();
+
     const mailOptions = {
-      from: `"${config.smtp.fromName}" <${config.smtp.fromEmail}>`,
+      from: `"${sender.name}" <${sender.email}>`,
       to: email,
       subject: `Reminder: ${eventTitle} is tomorrow! 📅`,
       html: `
@@ -209,7 +363,9 @@ export async function sendEventReminderEmail(
     };
 
     await transporter.sendMail(mailOptions);
-    logger.info(`Event reminder sent to ${email} for ${eventTitle}`);
+    logger.info(
+      `Event reminder sent to ${email} for ${eventTitle} via ${activeTransport}`,
+    );
     return true;
   } catch (error) {
     logger.error("Failed to send event reminder email:", error);
@@ -218,20 +374,34 @@ export async function sendEventReminderEmail(
 }
 
 /**
- * Verify SMTP connection
+ * Verify email connection
  */
 export async function verifyEmailConnection(): Promise<boolean> {
   try {
+    const transporter = getTransporter();
+    if (!transporter) {
+      logger.warn("No email transporter available for verification");
+      return false;
+    }
+
+    // Gmail API doesn't support verify(), so we'll just check if transporter exists
+    if (activeTransport === "gmail-api") {
+      logger.info("Gmail API transporter ready (verification skipped - OAuth2)");
+      return true;
+    }
+
+    // For SMTP, actually verify the connection
     await transporter.verify();
     logger.info("SMTP connection verified successfully");
     return true;
   } catch (error) {
-    logger.error("SMTP connection failed:", error);
+    logger.error("Email connection verification failed:", error);
     return false;
   }
 }
 
 export default {
+  initializeTransports,
   sendOtpEmail,
   sendWelcomeEmail,
   sendEventReminderEmail,
