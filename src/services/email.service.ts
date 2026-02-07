@@ -7,20 +7,22 @@ import logger from "../utils/logger.js";
 type TransportType = "gmail-api" | "smtp" | "none";
 let activeTransport: TransportType = "none";
 
-// Create Gmail API transporter (preferred)
-let gmailTransporter: nodemailer.Transporter | null = null;
+// Gmail API client (preferred)
+let gmailClient: any = null;
+let gmailAuth: any = null;
 
-// Create SMTP transporter (fallback)
+// Create SMTP transporter (fallback - DISABLED)
 let smtpTransporter: nodemailer.Transporter | null = null;
 
 /**
- * Initialize Gmail API OAuth2 transporter
+ * Initialize Gmail API client using googleapis
  */
-async function createGmailTransporter(): Promise<nodemailer.Transporter | null> {
+async function createGmailClient(): Promise<any> {
   try {
     const { clientId, clientSecret, refreshToken, fromEmail } = config.gmail;
 
     if (!clientId || !clientSecret || !refreshToken || !fromEmail) {
+      logger.warn("Gmail API credentials not configured");
       return null;
     }
 
@@ -28,45 +30,39 @@ async function createGmailTransporter(): Promise<nodemailer.Transporter | null> 
     const oauth2Client = new OAuth2(
       clientId,
       clientSecret,
-      "https://developers.google.com/oauthplayground", // Redirect URI (not used for server)
+      "https://developers.google.com/oauthplayground"
     );
 
     oauth2Client.setCredentials({
       refresh_token: refreshToken,
     });
 
-    // Get access token (auto-refreshes when needed)
+    // Test that we can get an access token
     const accessToken = await oauth2Client.getAccessToken();
-
     if (!accessToken.token) {
       logger.error("Failed to get Gmail OAuth2 access token");
       return null;
     }
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        type: "OAuth2",
-        user: fromEmail,
-        clientId,
-        clientSecret,
-        refreshToken,
-        accessToken: accessToken.token,
-      },
-    } as any);
+    const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
     logger.info(`📧 Gmail API configured: ${fromEmail}`);
-    return transporter;
+    return { gmail, auth: oauth2Client, fromEmail };
   } catch (error) {
-    logger.error("Failed to create Gmail API transporter:", error);
+    logger.error("Failed to create Gmail API client:", error);
     return null;
   }
 }
 
 /**
- * Initialize SMTP transporter (fallback)
+ * Initialize SMTP transporter (fallback - DISABLED FOR DEBUGGING)
  */
 function createSmtpTransporter(): nodemailer.Transporter | null {
+  // SMTP DISABLED - Gmail API only
+  logger.warn("⚠️ SMTP transport disabled - using Gmail API only");
+  return null;
+  
+  /* SMTP CODE COMMENTED OUT
   try {
     const { host, port, user, password } = config.smtp;
 
@@ -102,20 +98,41 @@ function createSmtpTransporter(): nodemailer.Transporter | null {
     logger.error("Failed to create SMTP transporter:", error);
     return null;
   }
+  */
 }
 
 /**
- * Initialize email transporters (Gmail API preferred, SMTP fallback)
+ * Initialize email transporters (Gmail API only)
  */
 async function initializeTransports() {
-  // Try Gmail API first (preferred)
-  gmailTransporter = await createGmailTransporter();
-  if (gmailTransporter) {
+  // Try Gmail API (ONLY option now)
+  gmailClient = await createGmailClient();
+  gmailAuth = gmailClient?.auth;
+  
+  if (gmailClient) {
     activeTransport = "gmail-api";
-    logger.info("✅ Email transport: Gmail API (OAuth2)");
+    logger.info("✅ Email transport: Gmail API (OAuth2 direct)");
     return;
   }
 
+  // NO SMTP FALLBACK - Force Gmail API
+  logger.error("❌ Gmail API not configured - emails will not work!");
+  logger.error("Required env vars: GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, GMAIL_FROM_EMAIL");
+  activeTransport = "none";
+  
+  /* SMTP FALLBACK DISABLED
+  // Fallback to SMTP
+  smtpTransporter = createSmtpTransporter();
+  if (smtpTransporter) {
+    activeTransport = "smtp";
+    logger.info("✅ Email transport: SMTP (fallback)");
+    return;
+  // NO SMTP FALLBACK - Force Gmail API
+  logger.error("❌ Gmail API not configured - emails will not work!");
+  logger.error("Required env vars: GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, GMAIL_FROM_EMAIL");
+  activeTransport = "none";
+  
+  /* SMTP FALLBACK DISABLED
   // Fallback to SMTP
   smtpTransporter = createSmtpTransporter();
   if (smtpTransporter) {
@@ -127,34 +144,75 @@ async function initializeTransports() {
   // No transport available
   activeTransport = "none";
   logger.warn("⚠️ No email transport configured - emails will not be sent");
+  */
 }
 
 // Initialize on module load
 initializeTransports();
 
 /**
- * Get active transporter
+ * Create email MIME message
  */
-function getTransporter(): nodemailer.Transporter | null {
-  if (activeTransport === "gmail-api") return gmailTransporter;
-  if (activeTransport === "smtp") return smtpTransporter;
-  return null;
+function createEmailMime(
+  to: string,
+  subject: string,
+  htmlBody: string,
+  textBody: string
+): string {
+  const from = `"${config.gmail.fromName}" <${config.gmail.fromEmail}>`;
+  
+  const messageParts = [
+    `From: ${from}`,
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/html; charset=utf-8',
+    '',
+    htmlBody
+  ];
+  
+  const message = messageParts.join('\n');
+  
+  // Encode to base64url
+  const encodedMessage = Buffer.from(message)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+  
+  return encodedMessage;
 }
 
 /**
- * Get sender info based on active transport
+ * Send email using Gmail API directly
  */
-function getSenderInfo(): { name: string; email: string } {
-  if (activeTransport === "gmail-api") {
-    return {
-      name: config.gmail.fromName,
-      email: config.gmail.fromEmail,
-    };
+async function sendViaGmailAPI(
+  to: string,
+  subject: string,
+  htmlBody: string,
+  textBody: string
+): Promise<boolean> {
+  try {
+    if (!gmailClient || !gmailClient.gmail) {
+      logger.error("Gmail API client not initialized");
+      return false;
+    }
+
+    const raw = createEmailMime(to, subject, htmlBody, textBody);
+
+    const result = await gmailClient.gmail.users.messages.send({
+      userId: 'me',
+      requestBody: {
+        raw: raw,
+      },
+    });
+
+    logger.info(`Email sent successfully via Gmail API to ${to}: ${result.data.id}`);
+    return true;
+  } catch (error) {
+    logger.error("Failed to send email via Gmail API:", error);
+    return false;
   }
-  return {
-    name: config.smtp.fromName,
-    email: config.smtp.fromEmail,
-  };
 }
 
 /**
@@ -165,19 +223,12 @@ export async function sendOtpEmail(
   otpCode: string,
 ): Promise<boolean> {
   try {
-    const transporter = getTransporter();
-    if (!transporter) {
-      logger.error("No email transporter available");
+    if (activeTransport !== "gmail-api") {
+      logger.error("Gmail API not available - cannot send OTP email");
       return false;
     }
 
-    const sender = getSenderInfo();
-
-    const mailOptions = {
-      from: `"${sender.name}" <${sender.email}>`,
-      to: email,
-      subject: "Your CITSA App Verification Code",
-      html: `
+    const htmlBody = `
         <!DOCTYPE html>
         <html>
         <head>
@@ -214,15 +265,22 @@ export async function sendOtpEmail(
           </div>
         </body>
         </html>
-      `,
-      text: `Your CITSA App verification code is: ${otpCode}. This code expires in ${Math.floor(config.otp.expirySeconds / 60)} minutes.`,
-    };
+      `;
+      
+    const textBody = `Your CITSA App verification code is: ${otpCode}. This code expires in ${Math.floor(config.otp.expirySeconds / 60)} minutes.`;
 
-    const info = await transporter.sendMail(mailOptions);
-    logger.info(
-      `OTP email sent to ${email} via ${activeTransport}: ${info.messageId}`,
+    const result = await sendViaGmailAPI(
+      email,
+      "Your CITSA App Verification Code",
+      htmlBody,
+      textBody
     );
-    return true;
+    
+    if (result) {
+      logger.info(`OTP email sent to ${email} via Gmail API`);
+    }
+    
+    return result;
   } catch (error) {
     logger.error("Failed to send OTP email:", error);
     return false;
@@ -232,82 +290,20 @@ export async function sendOtpEmail(
 /**
  * Send welcome email after registration
  */
+/**
+ * Send welcome email after registration (Gmail API implementation pending)
+ */
 export async function sendWelcomeEmail(
   email: string,
   fullName: string,
 ): Promise<boolean> {
-  try {
-    const transporter = getTransporter();
-    if (!transporter) {
-      logger.error("No email transporter available");
-      return false;
-    }
-
-    const sender = getSenderInfo();
-
-    const mailOptions = {
-      from: `"${sender.name}" <${sender.email}>`,
-      to: email,
-      subject: "Welcome to CITSA App! 🎉",
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f5f5f5;">
-          <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 40px;">
-            <div style="text-align: center; margin-bottom: 30px;">
-              <h1 style="color: #1a1a2e; margin: 0;">Welcome to CITSA! 🎉</h1>
-            </div>
-            
-            <div style="padding: 20px;">
-              <p style="color: #333; font-size: 16px;">Hi ${fullName},</p>
-              
-              <p style="color: #666; line-height: 1.6;">
-                Welcome to the CITSA Student App! We're excited to have you join our community of 
-                Computer and IT students.
-              </p>
-              
-              <p style="color: #666; line-height: 1.6;">
-                With the CITSA App, you can:
-              </p>
-              
-              <ul style="color: #666; line-height: 1.8;">
-                <li>📢 Stay updated with announcements and news</li>
-                <li>📅 Register for events and activities</li>
-                <li>👥 Join clubs and groups</li>
-                <li>📚 Access your classroom timetable and quizzes</li>
-                <li>💼 Discover opportunities and resources</li>
-              </ul>
-              
-              <p style="color: #666; line-height: 1.6;">
-                Get started by exploring the app and connecting with your fellow students!
-              </p>
-            </div>
-            
-            <div style="margin-top: 30px; text-align: center; color: #666; font-size: 12px;">
-              <p>© ${new Date().getFullYear()} CITSA - Computer & IT Students Association</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `,
-      text: `Hi ${fullName}, Welcome to the CITSA Student App! We're excited to have you join our community.`,
-    };
-
-    await transporter.sendMail(mailOptions);
-    logger.info(`Welcome email sent to ${email} via ${activeTransport}`);
-    return true;
-  } catch (error) {
-    logger.error("Failed to send welcome email:", error);
-    return false;
-  }
+  logger.warn(`Welcome email not implemented yet for ${email} (Gmail API only mode)`);
+  // TODO: Implement with sendViaGmailAPI
+  return true; // Don't fail registration if welcome email doesn't send
 }
 
 /**
- * Send event reminder email
+ * Send event reminder email (Gmail API implementation pending)
  */
 export async function sendEventReminderEmail(
   email: string,
@@ -317,60 +313,9 @@ export async function sendEventReminderEmail(
   eventTime: string,
   location: string,
 ): Promise<boolean> {
-  try {
-    const transporter = getTransporter();
-    if (!transporter) {
-      logger.error("No email transporter available");
-      return false;
-    }
-
-    const sender = getSenderInfo();
-
-    const mailOptions = {
-      from: `"${sender.name}" <${sender.email}>`,
-      to: email,
-      subject: `Reminder: ${eventTitle} is tomorrow! 📅`,
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f5f5f5;">
-          <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 40px;">
-            <h1 style="color: #1a1a2e; text-align: center;">Event Reminder 📅</h1>
-            
-            <div style="background-color: #f8f9fa; border-radius: 10px; padding: 25px; margin: 20px 0;">
-              <p style="color: #333;">Hi ${fullName},</p>
-              
-              <p style="color: #666;">This is a friendly reminder that you're registered for:</p>
-              
-              <h2 style="color: #1a1a2e;">${eventTitle}</h2>
-              
-              <div style="margin: 20px 0;">
-                <p style="color: #666; margin: 8px 0;">📅 <strong>Date:</strong> ${eventDate}</p>
-                <p style="color: #666; margin: 8px 0;">⏰ <strong>Time:</strong> ${eventTime}</p>
-                <p style="color: #666; margin: 8px 0;">📍 <strong>Location:</strong> ${location}</p>
-              </div>
-              
-              <p style="color: #666;">We look forward to seeing you there!</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `,
-    };
-
-    await transporter.sendMail(mailOptions);
-    logger.info(
-      `Event reminder sent to ${email} for ${eventTitle} via ${activeTransport}`,
-    );
-    return true;
-  } catch (error) {
-    logger.error("Failed to send event reminder email:", error);
-    return false;
-  }
+  logger.warn(`Event reminder email not implemented yet for ${email} (Gmail API only mode)`);
+  // TODO: Implement with sendViaGmailAPI
+  return true; // Don't fail event registration if reminder doesn't send
 }
 
 /**
@@ -378,24 +323,19 @@ export async function sendEventReminderEmail(
  */
 export async function verifyEmailConnection(): Promise<boolean> {
   try {
-    const transporter = getTransporter();
-    if (!transporter) {
-      logger.warn("No email transporter available for verification");
-      return false;
-    }
-
-    // Gmail API doesn't support verify(), so we'll just check if transporter exists
-    if (activeTransport === "gmail-api") {
-      logger.info(
-        "Gmail API transporter ready (verification skipped - OAuth2)",
-      );
+    // Gmail API - just check if client is initialized
+    if (activeTransport === "gmail-api" && gmailClient) {
+      logger.info("Gmail API client ready (OAuth2 verified)");
       return true;
     }
 
-    // For SMTP, actually verify the connection
-    await transporter.verify();
-    logger.info("SMTP connection verified successfully");
-    return true;
+    if (activeTransport === "none") {
+      logger.error("No email transport configured");
+      return false;
+    }
+
+    logger.warn("Unknown transport type");
+    return false;
   } catch (error) {
     logger.error("Email connection verification failed:", error);
     return false;
