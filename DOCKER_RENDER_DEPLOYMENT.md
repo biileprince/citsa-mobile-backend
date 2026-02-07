@@ -1,6 +1,7 @@
 # Deploy to Render with Docker 🐳
 
 ## Why Docker Deployment?
+
 - ✅ **Consistent environment** - Works the same locally and in production
 - ✅ **Faster builds** - Cached layers speed up deployments
 - ✅ **Better isolation** - No dependency conflicts
@@ -24,6 +25,7 @@ Go to your existing service: https://dashboard.render.com/web/citsa-mobile-backe
 In **Settings → Build & Deploy**:
 
 **Dockerfile Path:**
+
 ```
 Dockerfile
 ```
@@ -43,8 +45,9 @@ Dockerfile
 **Keep all your existing environment variables** - they're already set!
 
 The Docker container will use:
+
 - `PORT` (provided by Render)
-- All your DATABASE_*, JWT_*, SMTP_*, AWS_* variables
+- All your DATABASE*\*, JWT*\_, SMTP\_\_, AWS\_\* variables
 
 ## Testing After Deployment
 
@@ -79,6 +82,7 @@ curl http://localhost:3000/api/v1/health
 ## Docker Build Process
 
 The Dockerfile:
+
 1. Uses Node.js 20 Alpine (lightweight ~120MB)
 2. Installs production dependencies
 3. Generates Prisma Client
@@ -88,13 +92,13 @@ The Dockerfile:
 
 ## Advantages Over Node Runtime
 
-| Feature | Node Runtime | Docker Runtime |
-|---------|-------------|----------------|
-| Build Time | ~30s | ~2-3 min first time, ~30s cached |
-| Image Size | N/A | ~300MB |
-| Consistency | May vary | Always same |
-| Customization | Limited | Full control |
-| Dependencies | npm only | System packages available |
+| Feature       | Node Runtime | Docker Runtime                   |
+| ------------- | ------------ | -------------------------------- |
+| Build Time    | ~30s         | ~2-3 min first time, ~30s cached |
+| Image Size    | N/A          | ~300MB                           |
+| Consistency   | May vary     | Always same                      |
+| Customization | Limited      | Full control                     |
+| Dependencies  | npm only     | System packages available        |
 
 ## Troubleshooting
 
@@ -103,20 +107,24 @@ The Dockerfile:
 Check Docker build logs in Render dashboard. Common issues:
 
 **Missing files:**
+
 - Ensure all files in Dockerfile COPY commands exist
 - Check .dockerignore isn't excluding needed files
 
 **Prisma generation fails:**
+
 - Verify prisma.config.ts is in root
 - Ensure DATABASE_URL env var is set
 
 **TypeScript compilation errors:**
+
 - Run `npm run build` locally first
 - Check all dependencies in package.json
 
 ### Container Crashes on Start
 
 **Check logs for:**
+
 - Database connection errors → Verify DATABASE_URL
 - Missing environment variables → Add in Render dashboard
 - Port binding issues → Should use `process.env.PORT`
@@ -127,6 +135,7 @@ Check Docker build logs in Render dashboard. Common issues:
 **Subsequent builds are faster** (~30 seconds) due to Docker layer caching
 
 To speed up:
+
 - Keep package.json changes minimal
 - Dependencies are cached between builds
 
@@ -135,7 +144,7 @@ To speed up:
 Create `docker-compose.yml` for local development:
 
 ```yaml
-version: '3.8'
+version: "3.8"
 services:
   api:
     build: .
@@ -154,6 +163,7 @@ Run with: `docker-compose up`
 ## Monitoring
 
 Docker deployments on Render include:
+
 - ✅ Container health checks
 - ✅ Automatic restarts on crash
 - ✅ Resource usage metrics (CPU, Memory)
@@ -162,6 +172,7 @@ Docker deployments on Render include:
 ## Updating Deployment
 
 **Any git push to main branch triggers:**
+
 1. Docker image rebuild
 2. Automatic redeployment
 3. Zero downtime rolling update
@@ -169,12 +180,14 @@ Docker deployments on Render include:
 ## Cost
 
 **Free tier includes:**
+
 - 750 hours/month (24/7 coverage)
 - 512 MB RAM
 - Shared CPU
 - Docker deployments count the same as Node.js
 
 **Paid tier ($7/month):**
+
 - No sleep
 - 1 GB RAM
 - Dedicated resources
