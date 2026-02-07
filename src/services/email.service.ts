@@ -28,7 +28,7 @@ async function createGmailTransporter(): Promise<nodemailer.Transporter | null> 
     const oauth2Client = new OAuth2(
       clientId,
       clientSecret,
-      "https://developers.google.com/oauthplayground" // Redirect URI (not used for server)
+      "https://developers.google.com/oauthplayground", // Redirect URI (not used for server)
     );
 
     oauth2Client.setCredentials({
@@ -386,7 +386,9 @@ export async function verifyEmailConnection(): Promise<boolean> {
 
     // Gmail API doesn't support verify(), so we'll just check if transporter exists
     if (activeTransport === "gmail-api") {
-      logger.info("Gmail API transporter ready (verification skipped - OAuth2)");
+      logger.info(
+        "Gmail API transporter ready (verification skipped - OAuth2)",
+      );
       return true;
     }
 
@@ -400,6 +402,9 @@ export async function verifyEmailConnection(): Promise<boolean> {
   }
 }
 
+// Export functions individually for named imports
+export { initializeTransports };
+
 export default {
   initializeTransports,
   sendOtpEmail,
@@ -407,3 +412,4 @@ export default {
   sendEventReminderEmail,
   verifyEmailConnection,
 };
+
