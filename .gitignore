@@ -40,12 +40,18 @@ uploads/
 test-*.js
 run-*-test.js
 check-ip-and-test.js
+generate-gmail-token.js
+gmail-token-helper.js
 
 # Documentation files (generated during testing)
 *_TESTING*.md
 *_GUIDE.md
 *_SETUP*.md
 *_COMPLETE.md
+*_DEPLOYMENT.md
+*_QUICKSTART.md
+GMAIL_API_*.md
+RENDER_*.md
 TESTING_QUICK_START.md
 AWS_S3_SETUP_REQUIRED.md
 
@@ -55,3 +61,7 @@ test-invalid.txt
 update-admin-email.js
 update-email.js
 .env.vercel.example
+
+# Old/backup files
+*.old.ts
+*.backup.js

@@ -2,7 +2,7 @@ import app from "./app.js";
 import config from "./config/index.js";
 import prisma from "./config/database.js";
 import logger from "./utils/logger.js";
-import { verifyEmailConnection } from "./services/email.service.js";
+import { initializeTransports, verifyEmailConnection } from "./services/email.service.js";
 import { cleanupExpiredTokens } from "./services/auth.service.js";
 
 const PORT = config.port;
@@ -28,26 +28,15 @@ async function startServer() {
     await prisma.$connect();
     logger.info("✅ Database connected successfully");
 
-    // Verify email configuration (optional - don't fail if email is not configured)
-    if (config.smtp.user && config.smtp.password) {
-      logger.info(`📧 Testing SMTP: ${config.smtp.host}:${config.smtp.port} as ${config.smtp.user}`);
-      const emailConnected = await verifyEmailConnection();
-      if (emailConnected) {
-        logger.info("✅ Email service connected successfully");
-      } else {
-        logger.warn(
-          `⚠️ Email service connection failed on port ${config.smtp.port} - OTP emails will not work`,
-        );
-        if (config.smtp.port === 465) {
-          logger.warn(
-            "💡 Tip: Port 465 is often blocked on cloud platforms. Try SMTP_PORT=587 with SMTP_SECURE=false",
-          );
-        }
-      }
+    // Initialize email transports (Gmail API preferred, SMTP fallback)
+    await initializeTransports();
+    
+    // Verify email configuration
+    const emailConnected = await verifyEmailConnection();
+    if (emailConnected) {
+      logger.info("✅ Email service connected successfully");
     } else {
-      logger.warn(
-        "⚠️ Email service not configured - set SMTP credentials in .env",
-      );
+      logger.warn("⚠️ Email service not configured - OTP emails will not work");
     }
 
     // Start cleanup job for expired tokens (every hour)
