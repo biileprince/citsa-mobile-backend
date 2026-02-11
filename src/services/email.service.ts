@@ -30,7 +30,7 @@ async function createGmailClient(): Promise<any> {
     const oauth2Client = new OAuth2(
       clientId,
       clientSecret,
-      "https://developers.google.com/oauthplayground"
+      "https://developers.google.com/oauthplayground",
     );
 
     oauth2Client.setCredentials({
@@ -61,7 +61,7 @@ function createSmtpTransporter(): nodemailer.Transporter | null {
   // SMTP DISABLED - Gmail API only
   logger.warn("⚠️ SMTP transport disabled - using Gmail API only");
   return null;
-  
+
   /* SMTP CODE COMMENTED OUT
   try {
     const { host, port, user, password } = config.smtp;
@@ -108,7 +108,7 @@ async function initializeTransports() {
   // Try Gmail API (ONLY option now)
   gmailClient = await createGmailClient();
   gmailAuth = gmailClient?.auth;
-  
+
   if (gmailClient) {
     activeTransport = "gmail-api";
     logger.info("✅ Email transport: Gmail API (OAuth2 direct)");
@@ -117,9 +117,11 @@ async function initializeTransports() {
 
   // NO SMTP FALLBACK - Force Gmail API
   logger.error("❌ Gmail API not configured - emails will not work!");
-  logger.error("Required env vars: GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, GMAIL_FROM_EMAIL");
+  logger.error(
+    "Required env vars: GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, GMAIL_FROM_EMAIL",
+  );
   activeTransport = "none";
-  
+
   /* SMTP FALLBACK DISABLED
   // Fallback to SMTP
   smtpTransporter = createSmtpTransporter();
@@ -157,29 +159,29 @@ function createEmailMime(
   to: string,
   subject: string,
   htmlBody: string,
-  textBody: string
+  textBody: string,
 ): string {
   const from = `"${config.gmail.fromName}" <${config.gmail.fromEmail}>`;
-  
+
   const messageParts = [
     `From: ${from}`,
     `To: ${to}`,
     `Subject: ${subject}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/html; charset=utf-8',
-    '',
-    htmlBody
+    "MIME-Version: 1.0",
+    "Content-Type: text/html; charset=utf-8",
+    "",
+    htmlBody,
   ];
-  
-  const message = messageParts.join('\n');
-  
+
+  const message = messageParts.join("\n");
+
   // Encode to base64url
   const encodedMessage = Buffer.from(message)
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-  
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
   return encodedMessage;
 }
 
@@ -190,7 +192,7 @@ async function sendViaGmailAPI(
   to: string,
   subject: string,
   htmlBody: string,
-  textBody: string
+  textBody: string,
 ): Promise<boolean> {
   try {
     if (!gmailClient || !gmailClient.gmail) {
@@ -201,13 +203,15 @@ async function sendViaGmailAPI(
     const raw = createEmailMime(to, subject, htmlBody, textBody);
 
     const result = await gmailClient.gmail.users.messages.send({
-      userId: 'me',
+      userId: "me",
       requestBody: {
         raw: raw,
       },
     });
 
-    logger.info(`Email sent successfully via Gmail API to ${to}: ${result.data.id}`);
+    logger.info(
+      `Email sent successfully via Gmail API to ${to}: ${result.data.id}`,
+    );
     return true;
   } catch (error) {
     logger.error("Failed to send email via Gmail API:", error);
@@ -266,20 +270,20 @@ export async function sendOtpEmail(
         </body>
         </html>
       `;
-      
+
     const textBody = `Your CITSA App verification code is: ${otpCode}. This code expires in ${Math.floor(config.otp.expirySeconds / 60)} minutes.`;
 
     const result = await sendViaGmailAPI(
       email,
       "Your CITSA App Verification Code",
       htmlBody,
-      textBody
+      textBody,
     );
-    
+
     if (result) {
       logger.info(`OTP email sent to ${email} via Gmail API`);
     }
-    
+
     return result;
   } catch (error) {
     logger.error("Failed to send OTP email:", error);
@@ -297,7 +301,9 @@ export async function sendWelcomeEmail(
   email: string,
   fullName: string,
 ): Promise<boolean> {
-  logger.warn(`Welcome email not implemented yet for ${email} (Gmail API only mode)`);
+  logger.warn(
+    `Welcome email not implemented yet for ${email} (Gmail API only mode)`,
+  );
   // TODO: Implement with sendViaGmailAPI
   return true; // Don't fail registration if welcome email doesn't send
 }
@@ -313,7 +319,9 @@ export async function sendEventReminderEmail(
   eventTime: string,
   location: string,
 ): Promise<boolean> {
-  logger.warn(`Event reminder email not implemented yet for ${email} (Gmail API only mode)`);
+  logger.warn(
+    `Event reminder email not implemented yet for ${email} (Gmail API only mode)`,
+  );
   // TODO: Implement with sendViaGmailAPI
   return true; // Don't fail event registration if reminder doesn't send
 }
@@ -352,4 +360,3 @@ export default {
   sendEventReminderEmail,
   verifyEmailConnection,
 };
-

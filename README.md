@@ -152,6 +152,118 @@ docker-compose down
 | DELETE | `/api/v1/notifications/:id`          | Delete notification      |
 | DELETE | `/api/v1/notifications/clear-read`   | Clear read notifications |
 
+## Production API Testing
+
+### Base URL
+
+**Production:** `https://citsa-mobile-backend.onrender.com`
+
+### Testing OTP Flow
+
+**1. Send OTP**
+
+Request:
+
+```bash
+curl -X POST https://citsa-mobile-backend.onrender.com/api/v1/auth/send-otp \
+  -H "Content-Type: application/json" \
+  -d '{"studentId": "PS/ADM/20/0001"}'
+```
+
+Expected Response:
+
+```json
+{
+  "success": true,
+  "message": "OTP sent to psadm200001@ucc.edu.gh",
+  "data": {
+    "email": "psadm200001@ucc.edu.gh",
+    "expiresIn": 60
+  }
+}
+```
+
+**2. Verify OTP**
+
+Request:
+
+```bash
+curl -X POST https://citsa-mobile-backend.onrender.com/api/v1/auth/verify-otp \
+  -H "Content-Type: application/json" \
+  -d '{"studentId": "PS/ADM/20/0001", "otp": "123456"}'
+```
+
+Expected Response:
+
+```json
+{
+  "success": true,
+  "message": "Login successful",
+  "data": {
+    "user": {
+      "id": "uuid",
+      "studentId": "PS/ADM/20/0001",
+      "email": "psadm200001@ucc.edu.gh",
+      "isNewUser": true
+    },
+    "tokens": {
+      "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    }
+  }
+}
+```
+
+**3. Get User Profile** (Authenticated)
+
+Request:
+
+```bash
+curl -X GET https://citsa-mobile-backend.onrender.com/api/v1/users/profile \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+### Quick Test Endpoints
+
+| Endpoint                  | Method | Auth | Description            |
+| ------------------------- | ------ | ---- | ---------------------- |
+| `/api/v1/health`          | GET    | No   | Health check           |
+| `/api/v1/auth/send-otp`   | POST   | No   | Send OTP to test email |
+| `/api/v1/auth/verify-otp` | POST   | No   | Verify OTP code        |
+| `/api/v1/users/profile`   | GET    | Yes  | Get current user       |
+| `/api/v1/feed/posts`      | GET    | Yes  | Get feed posts         |
+| `/api/v1/events`          | GET    | Yes  | Get all events         |
+
+### Error Responses
+
+**Invalid Student ID:**
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_INPUT",
+    "message": "Student ID must be 9 digits",
+    "details": {
+      "field": "studentId",
+      "format": "Exactly 9 digits required"
+    }
+  }
+}
+```
+
+**Invalid OTP:**
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_CREDENTIALS",
+    "message": "Invalid or expired OTP"
+  }
+}
+```
+
 ## Authentication Flow
 
 1. User enters 9-digit student ID

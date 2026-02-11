@@ -1,0 +1,3373 @@
+openapi: 3.0.3
+info:
+  title: CITSA Mobile Backend API
+  description: |
+    REST API for the CITSA (Computer and Information Technology Students Association) Mobile Application.
+
+    ## Authentication
+    The API uses **JWT Bearer Token** authentication via a 2-step OTP flow:
+    1. Call `POST /auth/send-otp` with your student ID to receive a 6-digit OTP via email
+    2. Call `POST /auth/verify-otp` with the student ID and OTP code to receive access + refresh tokens
+    3. Include the access token in the `Authorization: Bearer <token>` header for protected endpoints
+    4. When the access token expires (1h), use `POST /auth/refresh-token` to get a new one
+
+    ## Student ID Format
+    Must match pattern: `XX/XXX/YY/NNNN` (e.g., `PS/ITC/22/0120`)
+
+    ## Rate Limiting
+    - General: 100 requests per 15 minutes per IP
+    - OTP: 3 requests per 5 minutes per IP
+    - Auth: 5 requests per 15 minutes per IP
+    - Uploads: 10 requests per 15 minutes per IP
+
+    ## Pagination
+    Paginated endpoints accept `page` (default: 1) and `limit` (default: 20, max: 100) query params.
+    Responses include a `pagination` object with `page`, `limit`, `total`, `totalPages`, `hasNext`, `hasPrev`.
+  version: 1.0.0
+  contact:
+    name: CITSA Dev Team
+    email: biileprinceyennuyar5@gmail.com
+  license:
+    name: ISC
+
+servers:
+  - url: https://citsa-mobile-backend.onrender.com/api/v1
+    description: Production Server (Render)
+  - url: http://localhost:3000/api/v1
+    description: Local Development Server
+
+tags:
+  - name: Health
+    description: Server health check
+  - name: Authentication
+    description: OTP-based authentication flow
+  - name: Users
+    description: User profile management
+  - name: Feed
+    description: News feed and post management
+  - name: Events
+    description: Event listing and registration
+  - name: Groups
+    description: Student groups and clubs
+  - name: Classrooms
+    description: Classroom, timetable, quizzes, and announcements
+  - name: Notifications
+    description: User notification management
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token obtained from verify-otp or refresh-token
+
+  schemas:
+    # ─── Common ──────────────────────────────────────
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: Machine-readable error code
+            message:
+              type: string
+              description: Human-readable error message
+            details:
+              type: object
+              description: Additional error details
+      example:
+        success: false
+        error:
+          code: "VALIDATION_ERROR"
+          message: "Validation failed"
+          details: [{ field: "studentId", message: "Student ID is required" }]
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              example: Validation failed
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 100
+        totalPages:
+          type: integer
+          example: 5
+        hasNext:
+          type: boolean
+          example: true
+        hasPrev:
+          type: boolean
+          example: false
+
+    # ─── Auth ──────────────────────────────────────
+    SendOtpRequest:
+      type: object
+      required: [studentId]
+      properties:
+        studentId:
+          type: string
+          pattern: '^[A-Z]{2}/[A-Z]{3}/\d{2}/\d{4}$'
+          example: "PS/ITC/22/0120"
+          description: Student ID in format XX/XXX/YY/NNNN
+
+    SendOtpResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "OTP sent successfully"
+        data:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "OTP sent successfully"
+            email:
+              type: string
+              example: "psi****@ucc.edu.gh"
+              description: Masked email for privacy
+
+    VerifyOtpRequest:
+      type: object
+      required: [studentId, otpCode]
+      properties:
+        studentId:
+          type: string
+          pattern: '^[A-Z]{2}/[A-Z]{3}/\d{2}/\d{4}$'
+          example: "PS/ITC/22/0120"
+        otpCode:
+          type: string
+          minLength: 6
+          maxLength: 6
+          pattern: '^\d{6}$'
+          example: "123456"
+          description: 6-digit OTP code
+
+    VerifyOtpResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Authentication successful"
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            refreshToken:
+              type: string
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            expiresIn:
+              type: integer
+              example: 3600
+              description: Access token expiry in seconds
+            user:
+              $ref: '#/components/schemas/UserProfile'
+            needsProfileSetup:
+              type: boolean
+              example: true
+              description: True if user has not completed initial profile setup
+
+    RefreshTokenRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          description: The refresh token obtained from login
+
+    RefreshTokenResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Token refreshed successfully"
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+            refreshToken:
+              type: string
+            expiresIn:
+              type: integer
+              example: 3600
+
+    LogoutRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+          description: The refresh token to invalidate
+
+    # ─── User ──────────────────────────────────────
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        studentId:
+          type: string
+          example: "PS/ITC/22/0120"
+        email:
+          type: string
+          format: email
+          example: "psitc220120@ucc.edu.gh"
+        fullName:
+          type: string
+          nullable: true
+          example: "Prince Yennuyar"
+        bio:
+          type: string
+          nullable: true
+          example: "Computer Science student, passionate about mobile dev"
+        avatarUrl:
+          type: string
+          nullable: true
+          format: uri
+        program:
+          type: string
+          nullable: true
+          example: "Computer Science"
+        classYear:
+          type: string
+          nullable: true
+          example: "2026"
+        skills:
+          type: array
+          items:
+            type: string
+          example: ["Flutter", "TypeScript", "Python"]
+        interests:
+          type: array
+          items:
+            type: string
+          example: ["Mobile Development", "AI"]
+        portfolioUrl:
+          type: string
+          nullable: true
+          format: uri
+        role:
+          type: string
+          enum: [STUDENT, CLASS_REP, ADMIN]
+          example: "STUDENT"
+        isVerified:
+          type: boolean
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+
+    ProfileSetupRequest:
+      type: object
+      required: [fullName, program, classYear]
+      properties:
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 255
+          example: "Prince Yennuyar"
+        bio:
+          type: string
+          maxLength: 1000
+          example: "CS student"
+        program:
+          type: string
+          maxLength: 100
+          example: "Computer Science"
+        classYear:
+          type: string
+          minLength: 4
+          maxLength: 4
+          example: "2026"
+        skills:
+          type: array
+          items:
+            type: string
+          example: ["Flutter", "TypeScript"]
+        interests:
+          type: array
+          items:
+            type: string
+          example: ["Mobile Dev", "AI"]
+        portfolioUrl:
+          type: string
+          format: uri
+
+    ProfileUpdateRequest:
+      type: object
+      properties:
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 255
+        bio:
+          type: string
+          maxLength: 1000
+        program:
+          type: string
+          maxLength: 100
+        classYear:
+          type: string
+          minLength: 4
+          maxLength: 4
+        skills:
+          type: array
+          items:
+            type: string
+        interests:
+          type: array
+          items:
+            type: string
+        portfolioUrl:
+          type: string
+          format: uri
+
+    UserSearchResult:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        studentId:
+          type: string
+        fullName:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        program:
+          type: string
+          nullable: true
+        classYear:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [STUDENT, CLASS_REP, ADMIN]
+
+    # ─── Post / Feed ──────────────────────────────────────
+    PostAuthor:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        fullName:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [STUDENT, CLASS_REP, ADMIN]
+
+    PostEvent:
+      type: object
+      nullable: true
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventDate:
+          type: string
+          format: date-time
+        eventTime:
+          type: string
+          example: "14:00"
+        location:
+          type: string
+          example: "Lecture Hall A"
+        capacityMax:
+          type: integer
+          example: 100
+        capacityCurrent:
+          type: integer
+          example: 42
+        registrationDeadline:
+          type: string
+          format: date-time
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["workshop", "coding"]
+        isUrgent:
+          type: boolean
+
+    Post:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [ANNOUNCEMENT, EVENT, OPPORTUNITY, BLOG, TESTIMONY]
+        category:
+          type: string
+          enum: [POSITIVE_NEWS, EVENTS, OPPORTUNITY, BLOG, TESTIMONY]
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        content:
+          type: string
+        imageUrl:
+          type: string
+          nullable: true
+          format: uri
+        likesCount:
+          type: integer
+        commentsCount:
+          type: integer
+        sharesCount:
+          type: integer
+        viewsCount:
+          type: integer
+        isPinned:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        author:
+          $ref: '#/components/schemas/PostAuthor'
+        event:
+          $ref: '#/components/schemas/PostEvent'
+        isLiked:
+          type: boolean
+          description: Whether the authenticated user has liked this post
+        isSaved:
+          type: boolean
+          description: Whether the authenticated user has saved this post
+
+    PostDetail:
+      allOf:
+        - $ref: '#/components/schemas/Post'
+        - type: object
+          properties:
+            comments:
+              type: array
+              items:
+                $ref: '#/components/schemas/Comment'
+
+    Comment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        content:
+          type: string
+        likesCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            fullName:
+              type: string
+              nullable: true
+            avatarUrl:
+              type: string
+              nullable: true
+        replies:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              content:
+                type: string
+              likesCount:
+                type: integer
+              createdAt:
+                type: string
+                format: date-time
+              user:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  fullName:
+                    type: string
+                    nullable: true
+                  avatarUrl:
+                    type: string
+                    nullable: true
+
+    CreatePostRequest:
+      type: object
+      required: [type, title, content]
+      properties:
+        type:
+          type: string
+          enum: [ANNOUNCEMENT, EVENT, OPPORTUNITY, BLOG, TESTIMONY]
+          example: "ANNOUNCEMENT"
+        category:
+          type: string
+          enum: [POSITIVE_NEWS, EVENTS, OPPORTUNITY, BLOG, TESTIMONY]
+        title:
+          type: string
+          minLength: 5
+          maxLength: 500
+          example: "Welcome to CITSA 2026!"
+        content:
+          type: string
+          minLength: 10
+          example: "We are excited to announce the new semester activities..."
+        imageUrl:
+          type: string
+          format: uri
+          description: Image URL (alternative to file upload)
+        isPinned:
+          type: boolean
+          default: false
+        eventDate:
+          type: string
+          format: date-time
+          description: Required when type is EVENT
+        eventTime:
+          type: string
+          pattern: '^([01]?[0-9]|2[0-3]):[0-5][0-9]$'
+          example: "14:00"
+          description: Required when type is EVENT (HH:MM format)
+        location:
+          type: string
+          description: Required when type is EVENT
+        capacityMax:
+          type: integer
+          minimum: 1
+          description: Required when type is EVENT
+        registrationDeadline:
+          type: string
+          format: date-time
+        tags:
+          type: array
+          items:
+            type: string
+        isUrgent:
+          type: boolean
+          default: false
+
+    UpdatePostRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [ANNOUNCEMENT, EVENT, OPPORTUNITY, BLOG, TESTIMONY]
+        category:
+          type: string
+          enum: [POSITIVE_NEWS, EVENTS, OPPORTUNITY, BLOG, TESTIMONY]
+        title:
+          type: string
+          minLength: 5
+          maxLength: 500
+        content:
+          type: string
+          minLength: 10
+        imageUrl:
+          type: string
+          format: uri
+        isPinned:
+          type: boolean
+        eventDate:
+          type: string
+          format: date-time
+        eventTime:
+          type: string
+          pattern: '^([01]?[0-9]|2[0-3]):[0-5][0-9]$'
+        location:
+          type: string
+        capacityMax:
+          type: integer
+          minimum: 1
+        registrationDeadline:
+          type: string
+          format: date-time
+        tags:
+          type: array
+          items:
+            type: string
+        isUrgent:
+          type: boolean
+
+    CreateCommentRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          example: "Great post!"
+        parentCommentId:
+          type: string
+          format: uuid
+          description: ID of parent comment for threaded replies
+
+    # ─── Event ──────────────────────────────────────
+    Event:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        postId:
+          type: string
+          format: uuid
+        eventDate:
+          type: string
+          format: date-time
+        eventTime:
+          type: string
+          example: "14:00"
+        location:
+          type: string
+        capacityMax:
+          type: integer
+        capacityCurrent:
+          type: integer
+        registrationDeadline:
+          type: string
+          format: date-time
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        isUrgent:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        post:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            title:
+              type: string
+              nullable: true
+            content:
+              type: string
+            imageUrl:
+              type: string
+              nullable: true
+            likesCount:
+              type: integer
+            commentsCount:
+              type: integer
+            author:
+              type: object
+              nullable: true
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                fullName:
+                  type: string
+                  nullable: true
+                avatarUrl:
+                  type: string
+                  nullable: true
+        isRegistered:
+          type: boolean
+          description: Whether the authenticated user is registered
+        isFull:
+          type: boolean
+          description: Whether the event is at full capacity
+        spotsRemaining:
+          type: integer
+          description: Number of available spots
+
+    # ─── Group ──────────────────────────────────────
+    Group:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Flutter Developers Club"
+        description:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+          example: "Technology"
+        avatarUrl:
+          type: string
+          nullable: true
+        coverColor:
+          type: string
+          nullable: true
+          example: "#4A90D9"
+        membersCount:
+          type: integer
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        isMember:
+          type: boolean
+          description: Whether the authenticated user is a member
+        userRole:
+          type: string
+          nullable: true
+          enum: [MEMBER, MODERATOR, ADMIN]
+          description: Authenticated user's role in this group
+
+    GroupMember:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        fullName:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        program:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [MEMBER, MODERATOR, ADMIN]
+        joinedAt:
+          type: string
+          format: date-time
+
+    GroupCategory:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "Technology"
+        count:
+          type: integer
+          example: 5
+
+    # ─── Classroom ──────────────────────────────────────
+    Classroom:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        yearGroup:
+          type: string
+          example: "2026"
+        graduationYear:
+          type: string
+          example: "2026"
+        semester:
+          type: string
+          example: "1"
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    ClassroomDetail:
+      allOf:
+        - $ref: '#/components/schemas/Classroom'
+        - type: object
+          properties:
+            courses:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  courseCode:
+                    type: string
+                    example: "CS301"
+                  courseName:
+                    type: string
+                    example: "Data Structures"
+                  credits:
+                    type: integer
+                    example: 3
+                  upcomingQuizzes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Quiz'
+            timetableSlots:
+              type: array
+              items:
+                $ref: '#/components/schemas/TimetableSlot'
+
+    TimetableSlot:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        startTime:
+          type: string
+          example: "08:00"
+        endTime:
+          type: string
+          example: "10:00"
+        room:
+          type: string
+          nullable: true
+          example: "LH 201"
+        course:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            courseCode:
+              type: string
+            courseName:
+              type: string
+
+    TimetableByDay:
+      type: object
+      properties:
+        Monday:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimetableSlot'
+        Tuesday:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimetableSlot'
+        Wednesday:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimetableSlot'
+        Thursday:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimetableSlot'
+        Friday:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimetableSlot'
+        Saturday:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimetableSlot'
+        Sunday:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimetableSlot'
+
+    Quiz:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          example: "Data Structures Quiz 1"
+        quizDate:
+          type: string
+          format: date-time
+        quizTime:
+          type: string
+          nullable: true
+          example: "10:00"
+        course:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            courseCode:
+              type: string
+            courseName:
+              type: string
+
+    CreateClassroomRequest:
+      type: object
+      required: [yearGroup, graduationYear, semester]
+      properties:
+        yearGroup:
+          type: string
+          minLength: 4
+          maxLength: 4
+          example: "2026"
+        graduationYear:
+          type: integer
+          minimum: 2020
+          maximum: 2100
+          example: 2026
+        semester:
+          type: integer
+          minimum: 1
+          maximum: 2
+          example: 1
+        isActive:
+          type: boolean
+          default: true
+
+    Announcement:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        content:
+          type: string
+        isPinned:
+          type: boolean
+        isUrgent:
+          type: boolean
+        likesCount:
+          type: integer
+        commentsCount:
+          type: integer
+        viewsCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        author:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            fullName:
+              type: string
+              nullable: true
+            avatarUrl:
+              type: string
+              nullable: true
+
+    CreateAnnouncementRequest:
+      type: object
+      required: [title, content]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: "Important: Exam Schedule"
+        content:
+          type: string
+          minLength: 1
+          maxLength: 5000
+          example: "The exam schedule for this semester has been released..."
+        isPinned:
+          type: boolean
+          default: false
+        isUrgent:
+          type: boolean
+          default: false
+
+    UpdateAnnouncementRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        content:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        isPinned:
+          type: boolean
+        isUrgent:
+          type: boolean
+
+    # ─── Notification ──────────────────────────────────────
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [LIKE, COMMENT, EVENT_REMINDER, ANNOUNCEMENT, URGENT_ANNOUNCEMENT, EVENT_FULL, NEW_EVENT, MENTION]
+        title:
+          type: string
+        message:
+          type: string
+        relatedEntityType:
+          type: string
+          nullable: true
+          example: "post"
+        relatedEntityId:
+          type: string
+          nullable: true
+          format: uuid
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: UNAUTHORIZED
+              message: "Access token is required"
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: FORBIDDEN
+              message: "Admin access required"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: NOT_FOUND
+              message: "Resource not found"
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+    Conflict:
+      description: Resource conflict (e.g., already exists)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: CONFLICT
+              message: "Resource already exists"
+    RateLimited:
+      description: Too many requests
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: OTP_RATE_LIMITED
+              message: "Too many requests. Please wait 5 minutes."
+
+# ═══════════════════════════════════════════════════════════
+# PATHS
+# ═══════════════════════════════════════════════════════════
+paths:
+  # ─── Health ──────────────────────────────────────
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Check if the API server is running
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "CITSA Backend API is running"
+                  timestamp:
+                    type: string
+                    format: date-time
+                  version:
+                    type: string
+                    example: "1.0.0"
+
+  # ─── Authentication ──────────────────────────────────────
+  /auth/send-otp:
+    post:
+      tags: [Authentication]
+      summary: Send OTP to student email
+      description: |
+        Sends a 6-digit OTP code to the student's university email address.
+        The OTP expires after 60 seconds. Rate limited to 3 requests per 5 minutes.
+      operationId: sendOtp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendOtpRequest'
+      responses:
+        '200':
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendOtpResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          description: Student not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: USER_NOT_FOUND
+                  message: "Student not found. Please contact administration."
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          description: Failed to send OTP email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/resend-otp:
+    post:
+      tags: [Authentication]
+      summary: Resend OTP (invalidates previous)
+      description: |
+        Invalidates all previous OTPs for this student and sends a new one.
+        Rate limited to 3 requests per 5 minutes.
+      operationId: resendOtp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendOtpRequest'
+      responses:
+        '200':
+          description: OTP resent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "OTP resent successfully"
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      email:
+                        type: string
+                        description: Masked email
+                      expiresIn:
+                        type: integer
+                        example: 60
+                        description: OTP expiry in seconds
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/verify-otp:
+    post:
+      tags: [Authentication]
+      summary: Verify OTP and get tokens
+      description: |
+        Verifies the OTP code and returns JWT access + refresh tokens.
+        OTP must be verified within 60 seconds of being sent.
+        Maximum 3 verification attempts before lockout.
+      operationId: verifyOtp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyOtpRequest'
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyOtpResponse'
+        '400':
+          description: Invalid or expired OTP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_otp:
+                  summary: Invalid OTP
+                  value:
+                    success: false
+                    error:
+                      code: OTP_INVALID
+                      message: "Invalid OTP code"
+                expired_otp:
+                  summary: Expired OTP
+                  value:
+                    success: false
+                    error:
+                      code: OTP_EXPIRED
+                      message: "OTP has expired. Please request a new one."
+                max_attempts:
+                  summary: Max attempts exceeded
+                  value:
+                    success: false
+                    error:
+                      code: OTP_MAX_ATTEMPTS
+                      message: "Maximum verification attempts exceeded"
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/refresh-token:
+    post:
+      tags: [Authentication]
+      summary: Refresh access token
+      description: Use a valid refresh token to get a new access token and refresh token pair.
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshTokenResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: TOKEN_INVALID
+                  message: "Invalid or expired refresh token"
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Logout (invalidate refresh token)
+      description: Invalidates the provided refresh token to prevent future use.
+      operationId: logout
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '200':
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Logged out successfully"
+
+  # ─── Users ──────────────────────────────────────
+  /users/profile:
+    get:
+      tags: [Users]
+      summary: Get current user profile
+      description: Returns the authenticated user's full profile.
+      operationId: getMyProfile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/UserProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Users]
+      summary: Update user profile
+      description: Update fields of the authenticated user's profile. All fields are optional.
+      operationId: updateProfile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdateRequest'
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Profile updated successfully"
+                  data:
+                    $ref: '#/components/schemas/UserProfile'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/profile/{userId}:
+    get:
+      tags: [Users]
+      summary: Get user profile by ID
+      description: |
+        Returns a user's profile by their ID. Email is masked for privacy unless viewing own profile.
+        Authentication is optional — if provided, own profile email will not be masked.
+      operationId: getUserProfile
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: User UUID
+      responses:
+        '200':
+          description: User profile retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/UserProfile'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/profile/setup:
+    post:
+      tags: [Users]
+      summary: First-time profile setup
+      description: |
+        Sets up the user profile for the first time after registration.
+        Can only be called once — returns 409 Conflict if profile is already set up.
+      operationId: setupProfile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileSetupRequest'
+      responses:
+        '200':
+          description: Profile setup completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Profile setup completed"
+                  data:
+                    $ref: '#/components/schemas/UserProfile'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Profile already set up
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: CONFLICT
+                  message: "Profile is already set up. Use update endpoint instead."
+
+  /users/avatar:
+    post:
+      tags: [Users]
+      summary: Upload user avatar
+      description: |
+        Upload a profile picture. Accepts JPEG, PNG, GIF, WebP. Max size: 5MB.
+        Replaces existing avatar if one exists.
+      operationId: uploadAvatar
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [avatar]
+              properties:
+                avatar:
+                  type: string
+                  format: binary
+                  description: Image file (JPEG, PNG, GIF, WebP, max 5MB)
+      responses:
+        '200':
+          description: Avatar uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Avatar uploaded successfully"
+                  data:
+                    type: object
+                    properties:
+                      avatarUrl:
+                        type: string
+                        format: uri
+        '400':
+          description: No file uploaded or invalid file type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      tags: [Users]
+      summary: Delete user avatar
+      description: Removes the authenticated user's profile picture.
+      operationId: deleteAvatar
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Avatar deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Avatar deleted successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/search:
+    get:
+      tags: [Users]
+      summary: Search users
+      description: Search for users by name, student ID, or program.
+      operationId: searchUsers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Search query (searches fullName, studentId, program)
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserSearchResult'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ─── Feed / Posts ──────────────────────────────────────
+  /feed/posts:
+    get:
+      tags: [Feed]
+      summary: Get feed posts
+      description: |
+        Returns paginated feed posts with optional filtering by type, category, or search.
+        Authentication is optional — if provided, `isLiked` and `isSaved` will be populated.
+        Posts are ordered by pinned status (pinned first), then by newest first.
+      operationId: getPosts
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [ANNOUNCEMENT, EVENT, OPPORTUNITY, BLOG, TESTIMONY]
+          description: Filter by post type
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [POSITIVE_NEWS, EVENTS, OPPORTUNITY, BLOG, TESTIMONY]
+          description: Filter by category
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search in title and content
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: List of posts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Post'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+    post:
+      tags: [Feed]
+      summary: Create post (Admin only)
+      description: |
+        Create a new post. Only admins can create posts.
+        Supports optional image upload via multipart/form-data.
+        For EVENT type posts, event-specific fields (eventDate, eventTime, location, capacityMax) are required.
+      operationId: createPost
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [type, title, content]
+              properties:
+                type:
+                  type: string
+                  enum: [ANNOUNCEMENT, EVENT, OPPORTUNITY, BLOG, TESTIMONY]
+                category:
+                  type: string
+                  enum: [POSITIVE_NEWS, EVENTS, OPPORTUNITY, BLOG, TESTIMONY]
+                title:
+                  type: string
+                content:
+                  type: string
+                image:
+                  type: string
+                  format: binary
+                  description: Post image (JPEG, PNG, GIF, WebP, max 10MB)
+                isPinned:
+                  type: boolean
+                eventDate:
+                  type: string
+                  format: date-time
+                eventTime:
+                  type: string
+                location:
+                  type: string
+                capacityMax:
+                  type: integer
+                registrationDeadline:
+                  type: string
+                  format: date-time
+                tags:
+                  type: string
+                  description: JSON array as string e.g. '["workshop", "coding"]'
+                isUrgent:
+                  type: boolean
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePostRequest'
+      responses:
+        '201':
+          description: Post created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Post created successfully"
+                  data:
+                    $ref: '#/components/schemas/Post'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /feed/posts/{id}:
+    get:
+      tags: [Feed]
+      summary: Get single post
+      description: |
+        Returns a single post with its comments (top-level with nested replies).
+        Increments view count on each request.
+        Authentication is optional — if provided, `isLiked` and `isSaved` will be populated.
+      operationId: getPostById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Post details with comments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/PostDetail'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Feed]
+      summary: Update post (Admin only)
+      description: Update an existing post. Supports image upload. Admin access required.
+      operationId: updatePost
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [ANNOUNCEMENT, EVENT, OPPORTUNITY, BLOG, TESTIMONY]
+                category:
+                  type: string
+                  enum: [POSITIVE_NEWS, EVENTS, OPPORTUNITY, BLOG, TESTIMONY]
+                title:
+                  type: string
+                content:
+                  type: string
+                image:
+                  type: string
+                  format: binary
+                isPinned:
+                  type: boolean
+                eventDate:
+                  type: string
+                  format: date-time
+                eventTime:
+                  type: string
+                location:
+                  type: string
+                capacityMax:
+                  type: integer
+                registrationDeadline:
+                  type: string
+                  format: date-time
+                tags:
+                  type: string
+                isUrgent:
+                  type: boolean
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePostRequest'
+      responses:
+        '200':
+          description: Post updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Post updated successfully"
+                  data:
+                    $ref: '#/components/schemas/Post'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /feed/posts/{id}/like:
+    post:
+      tags: [Feed]
+      summary: Like a post
+      description: Like a post. Creates a notification for the post author (unless liking own post).
+      operationId: likePost
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Post liked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Post liked successfully"
+                  data:
+                    type: object
+                    properties:
+                      liked:
+                        type: boolean
+                        example: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Already liked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: CONFLICT
+                  message: "You have already liked this post"
+    delete:
+      tags: [Feed]
+      summary: Unlike a post
+      description: Remove a like from a post.
+      operationId: unlikePost
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Post unliked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Post unliked"
+                  data:
+                    type: object
+                    properties:
+                      liked:
+                        type: boolean
+                        example: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /feed/posts/{id}/comments:
+    post:
+      tags: [Feed]
+      summary: Add comment to post
+      description: |
+        Add a comment to a post. Supports threaded replies via `parentCommentId`.
+        Creates a notification for the post author (unless commenting on own post).
+      operationId: addComment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCommentRequest'
+      responses:
+        '201':
+          description: Comment added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Comment added successfully"
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      content:
+                        type: string
+                      likesCount:
+                        type: integer
+                      createdAt:
+                        type: string
+                        format: date-time
+                      user:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          fullName:
+                            type: string
+                            nullable: true
+                          avatarUrl:
+                            type: string
+                            nullable: true
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /feed/posts/{id}/save:
+    post:
+      tags: [Feed]
+      summary: Save post to bookmarks
+      operationId: savePost
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Post saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Post saved successfully"
+                  data:
+                    type: object
+                    properties:
+                      saved:
+                        type: boolean
+                        example: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags: [Feed]
+      summary: Unsave post
+      operationId: unsavePost
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Post unsaved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Post unsaved"
+                  data:
+                    type: object
+                    properties:
+                      saved:
+                        type: boolean
+                        example: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /feed/posts/{id}/share:
+    post:
+      tags: [Feed]
+      summary: Share a post
+      description: Record a share action and increment the post's share count.
+      operationId: sharePost
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Post shared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Post shared"
+                  data:
+                    type: object
+                    properties:
+                      shared:
+                        type: boolean
+                        example: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /feed/saved:
+    get:
+      tags: [Feed]
+      summary: Get saved posts
+      description: Returns the authenticated user's saved/bookmarked posts.
+      operationId: getSavedPosts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Saved posts list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/Post'
+                        - type: object
+                          properties:
+                            savedAt:
+                              type: string
+                              format: date-time
+                            isSaved:
+                              type: boolean
+                              example: true
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ─── Events ──────────────────────────────────────
+  /events:
+    get:
+      tags: [Events]
+      summary: Get all events
+      description: |
+        Returns paginated events with optional filtering.
+        Authentication is optional — if provided, `isRegistered` will be populated.
+        Ordered by urgent first, then by event date ascending.
+      operationId: getEvents
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search in event post title/content
+        - name: upcoming
+          in: query
+          schema:
+            type: string
+            enum: ["true", "false"]
+          description: Filter to only upcoming events
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: List of events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /events/my-registrations:
+    get:
+      tags: [Events]
+      summary: Get my registered events
+      description: Returns events the authenticated user is registered for.
+      operationId: getMyRegistrations
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: upcoming
+          in: query
+          schema:
+            type: string
+            enum: ["true", "false"]
+          description: Filter to only upcoming events
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Registered events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/Event'
+                        - type: object
+                          properties:
+                            registeredAt:
+                              type: string
+                              format: date-time
+                            isRegistered:
+                              type: boolean
+                              example: true
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /events/{id}:
+    get:
+      tags: [Events]
+      summary: Get single event
+      description: Returns detailed event information. Authentication is optional.
+      operationId: getEventById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Event details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Event'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /events/{id}/register:
+    post:
+      tags: [Events]
+      summary: Register for event
+      description: |
+        Register the authenticated user for an event.
+        Fails if event is full, registration deadline has passed, or user is already registered.
+        Creates a confirmation notification.
+      operationId: registerForEvent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Successfully registered for event"
+                  data:
+                    $ref: '#/components/schemas/Event'
+        '400':
+          description: Registration failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                event_full:
+                  summary: Event is full
+                  value:
+                    success: false
+                    error:
+                      code: EVENT_FULL
+                      message: "Event is at full capacity"
+                deadline_passed:
+                  summary: Registration deadline passed
+                  value:
+                    success: false
+                    error:
+                      code: REGISTRATION_CLOSED
+                      message: "Registration deadline has passed"
+                already_registered:
+                  summary: Already registered
+                  value:
+                    success: false
+                    error:
+                      code: ALREADY_REGISTERED
+                      message: "You are already registered for this event"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Events]
+      summary: Cancel event registration
+      description: Cancel the authenticated user's registration for an event.
+      operationId: cancelRegistration
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Registration cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Registration cancelled"
+                  data:
+                    type: object
+                    properties:
+                      registered:
+                        type: boolean
+                        example: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Registration not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ─── Groups ──────────────────────────────────────
+  /groups:
+    get:
+      tags: [Groups]
+      summary: Get all groups
+      description: |
+        Returns paginated groups with optional filtering.
+        Authentication is optional — if provided, `isMember` and `userRole` will be populated.
+        Ordered by member count descending, then name ascending.
+      operationId: getGroups
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Filter by group category
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search in name and description
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: List of groups
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Group'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /groups/categories:
+    get:
+      tags: [Groups]
+      summary: Get group categories
+      description: Returns a list of group categories with the number of active groups in each.
+      operationId: getGroupCategories
+      responses:
+        '200':
+          description: Category list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GroupCategory'
+
+  /groups/my-groups:
+    get:
+      tags: [Groups]
+      summary: Get my groups
+      description: Returns groups that the authenticated user is a member of.
+      operationId: getMyGroups
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: User's groups
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/Group'
+                        - type: object
+                          properties:
+                            isMember:
+                              type: boolean
+                              example: true
+                            userRole:
+                              type: string
+                              enum: [MEMBER, MODERATOR, ADMIN]
+                            joinedAt:
+                              type: string
+                              format: date-time
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /groups/{id}:
+    get:
+      tags: [Groups]
+      summary: Get single group
+      description: Returns group details. Authentication is optional.
+      operationId: getGroupById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Group details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Group'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /groups/{id}/members:
+    get:
+      tags: [Groups]
+      summary: Get group members
+      description: Returns a paginated list of group members ordered by role (admins first) then join date.
+      operationId: getGroupMembers
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Group members list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GroupMember'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /groups/{id}/join:
+    post:
+      tags: [Groups]
+      summary: Join a group
+      operationId: joinGroup
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Joined group successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Successfully joined group"
+                  data:
+                    $ref: '#/components/schemas/Group'
+        '400':
+          description: Group is not active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Already a member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: CONFLICT
+                  message: "You are already a member of this group"
+    delete:
+      tags: [Groups]
+      summary: Leave a group
+      description: |
+        Leave a group. Cannot leave if you're the only admin — assign another admin first.
+      operationId: leaveGroup
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Left group
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Successfully left group"
+                  data:
+                    type: object
+                    properties:
+                      isMember:
+                        type: boolean
+                        example: false
+        '400':
+          description: Cannot leave as only admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─── Classrooms ──────────────────────────────────────
+  /classrooms:
+    get:
+      tags: [Classrooms]
+      summary: Get all classrooms
+      description: Returns paginated list of active classrooms.
+      operationId: getClassrooms
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: List of classrooms
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Classroom'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Classrooms]
+      summary: Create classroom (Admin only)
+      operationId: createClassroom
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateClassroomRequest'
+      responses:
+        '201':
+          description: Classroom created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Classroom created successfully"
+                  data:
+                    $ref: '#/components/schemas/Classroom'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /classrooms/{id}:
+    get:
+      tags: [Classrooms]
+      summary: Get classroom details
+      description: Returns full classroom information with courses, upcoming quizzes, and timetable.
+      operationId: getClassroomById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Classroom details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/ClassroomDetail'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /classrooms/{id}/timetable:
+    get:
+      tags: [Classrooms]
+      summary: Get classroom timetable
+      description: Returns timetable grouped by day of week (Monday–Sunday).
+      operationId: getClassroomTimetable
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Timetable grouped by day
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/TimetableByDay'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /classrooms/{id}/quizzes:
+    get:
+      tags: [Classrooms]
+      summary: Get upcoming quizzes
+      description: Returns upcoming quizzes for courses in this classroom (only future dates).
+      operationId: getClassroomQuizzes
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Upcoming quizzes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Quiz'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /classrooms/{id}/announcements:
+    get:
+      tags: [Classrooms]
+      summary: Get classroom announcements
+      description: Returns paginated announcements. Pinned and urgent announcements appear first.
+      operationId: getClassroomAnnouncements
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Announcements list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Announcement'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Classrooms]
+      summary: Create announcement (Class Rep only)
+      operationId: createAnnouncement
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAnnouncementRequest'
+      responses:
+        '201':
+          description: Announcement created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Announcement created successfully"
+                  data:
+                    $ref: '#/components/schemas/Announcement'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /classrooms/{id}/announcements/{announcementId}:
+    put:
+      tags: [Classrooms]
+      summary: Update announcement (Class Rep only)
+      description: Update an announcement. Only the author or an admin can update.
+      operationId: updateAnnouncement
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Classroom ID
+        - name: announcementId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Announcement ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAnnouncementRequest'
+      responses:
+        '200':
+          description: Announcement updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Announcement updated successfully"
+                  data:
+                    $ref: '#/components/schemas/Announcement'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Classrooms]
+      summary: Delete announcement (Class Rep only)
+      description: Delete an announcement. Only the author or an admin can delete.
+      operationId: deleteAnnouncement
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Classroom ID
+        - name: announcementId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Announcement ID
+      responses:
+        '200':
+          description: Announcement deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Announcement deleted successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─── Notifications ──────────────────────────────────────
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: Get notifications
+      description: Returns paginated notifications with unread count metadata.
+      operationId: getNotifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: unreadOnly
+          in: query
+          schema:
+            type: string
+            enum: ["true", "false"]
+          description: Filter to only unread notifications
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Notifications list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      notifications:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Notification'
+                      unreadCount:
+                        type: integer
+                        example: 5
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notifications/unread-count:
+    get:
+      tags: [Notifications]
+      summary: Get unread count
+      operationId: getUnreadCount
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Unread count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      unreadCount:
+                        type: integer
+                        example: 5
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notifications/read-all:
+    put:
+      tags: [Notifications]
+      summary: Mark all as read
+      operationId: markAllAsRead
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: All notifications marked as read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "All notifications marked as read"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notifications/clear-read:
+    delete:
+      tags: [Notifications]
+      summary: Clear read notifications
+      description: Permanently deletes all read notifications.
+      operationId: clearReadNotifications
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Read notifications cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "5 notifications cleared"
+                  data:
+                    type: object
+                    properties:
+                      deleted:
+                        type: integer
+                        example: 5
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notifications/{id}/read:
+    put:
+      tags: [Notifications]
+      summary: Mark notification as read
+      operationId: markAsRead
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Notification marked as read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Notification marked as read"
+                  data:
+                    type: object
+                    properties:
+                      isRead:
+                        type: boolean
+                        example: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /notifications/{id}:
+    delete:
+      tags: [Notifications]
+      summary: Delete notification
+      operationId: deleteNotification
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Notification deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Notification deleted"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
