@@ -5,7 +5,8 @@
     "main": "dist/server.js",
     "scripts": {
         "dev": "tsx watch src/server.ts",
-        "build": "prisma generate && tsc",
+        "build": "prisma generate && tsc && npm run copy:swagger",
+        "copy:swagger": "node -e \"const fs=require('fs');const p=require('path');fs.mkdirSync(p.join('dist','docs'),{recursive:true});fs.copyFileSync(p.join('src','docs','swagger.yaml'),p.join('dist','docs','swagger.yaml'));\"",
         "start": "node dist/server.js",
         "postinstall": "prisma generate",
         "db:generate": "prisma generate",
@@ -49,11 +50,14 @@
         "nodemailer": "^6.10.1",
         "prisma": "^7.3.0",
         "socket.io": "^4.8.1",
+        "swagger-ui-express": "^5.0.1",
         "typescript": "^5.6.3",
         "uuid": "^10.0.0",
-        "winston": "^3.16.0"
+        "winston": "^3.16.0",
+        "yaml": "^2.8.2"
     },
     "devDependencies": {
+        "@types/swagger-ui-express": "^4.1.8",
         "@typescript-eslint/eslint-plugin": "^8.14.0",
         "@typescript-eslint/parser": "^8.14.0",
         "eslint": "^9.14.0",
