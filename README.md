@@ -163,6 +163,7 @@ docker-compose down
 **1. Send OTP**
 
 Request:
+
 ```bash
 curl -X POST https://citsa-mobile-backend.onrender.com/api/v1/auth/send-otp \
   -H "Content-Type: application/json" \
@@ -170,6 +171,7 @@ curl -X POST https://citsa-mobile-backend.onrender.com/api/v1/auth/send-otp \
 ```
 
 Expected Response:
+
 ```json
 {
   "success": true,
@@ -184,6 +186,7 @@ Expected Response:
 **2. Verify OTP**
 
 Request:
+
 ```bash
 curl -X POST https://citsa-mobile-backend.onrender.com/api/v1/auth/verify-otp \
   -H "Content-Type: application/json" \
@@ -191,6 +194,7 @@ curl -X POST https://citsa-mobile-backend.onrender.com/api/v1/auth/verify-otp \
 ```
 
 Expected Response:
+
 ```json
 {
   "success": true,
@@ -213,6 +217,7 @@ Expected Response:
 **3. Get User Profile** (Authenticated)
 
 Request:
+
 ```bash
 curl -X GET https://citsa-mobile-backend.onrender.com/api/v1/users/profile \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
@@ -220,18 +225,19 @@ curl -X GET https://citsa-mobile-backend.onrender.com/api/v1/users/profile \
 
 ### Quick Test Endpoints
 
-| Endpoint                 | Method | Auth | Description            |
-| ------------------------ | ------ | ---- | ---------------------- |
-| `/api/v1/health`         | GET    | No   | Health check           |
-| `/api/v1/auth/send-otp`  | POST   | No   | Send OTP to test email |
-| `/api/v1/auth/verify-otp`| POST   | No   | Verify OTP code        |
-| `/api/v1/users/profile`  | GET    | Yes  | Get current user       |
-| `/api/v1/feed/posts`     | GET    | Yes  | Get feed posts         |
-| `/api/v1/events`         | GET    | Yes  | Get all events         |
+| Endpoint                  | Method | Auth | Description            |
+| ------------------------- | ------ | ---- | ---------------------- |
+| `/api/v1/health`          | GET    | No   | Health check           |
+| `/api/v1/auth/send-otp`   | POST   | No   | Send OTP to test email |
+| `/api/v1/auth/verify-otp` | POST   | No   | Verify OTP code        |
+| `/api/v1/users/profile`   | GET    | Yes  | Get current user       |
+| `/api/v1/feed/posts`      | GET    | Yes  | Get feed posts         |
+| `/api/v1/events`          | GET    | Yes  | Get all events         |
 
 ### Error Responses
 
 **Invalid Student ID:**
+
 ```json
 {
   "success": false,
@@ -247,6 +253,7 @@ curl -X GET https://citsa-mobile-backend.onrender.com/api/v1/users/profile \
 ```
 
 **Invalid OTP:**
+
 ```json
 {
   "success": false,
