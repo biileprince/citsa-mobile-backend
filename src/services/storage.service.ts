@@ -87,6 +87,19 @@ export async function uploadFile(
   const key = generateS3Key(type, userId, filename);
 
   try {
+    // Validate AWS credentials are configured
+    if (!config.aws.accessKeyId || !config.aws.secretAccessKey) {
+      throw new Error(
+        "AWS credentials not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables.",
+      );
+    }
+
+    if (!config.aws.s3Bucket) {
+      throw new Error(
+        "S3 bucket not configured. Set AWS_S3_BUCKET environment variable.",
+      );
+    }
+
     const command = new PutObjectCommand({
       Bucket: config.aws.s3Bucket,
       Key: key,
@@ -101,9 +114,38 @@ export async function uploadFile(
     logger.info(`File uploaded to S3: ${key}`);
 
     return { url, key };
-  } catch (error) {
-    logger.error("Failed to upload file to S3:", error);
-    throw new Error("Failed to upload file");
+  } catch (error: any) {
+    logger.error("Failed to upload file to S3:", {
+      error: error.message,
+      code: error.Code || error.name,
+      bucket: config.aws.s3Bucket,
+      key,
+      region: config.aws.region,
+    });
+
+    // Provide specific error messages
+    if (error.name === "AccessDenied" || error.Code === "AccessDenied") {
+      throw new Error(
+        `S3 Access Denied: Check your bucket policy and IAM permissions for bucket '${config.aws.s3Bucket}'`,
+      );
+    }
+    if (error.name === "NoSuchBucket" || error.Code === "NoSuchBucket") {
+      throw new Error(
+        `S3 bucket '${config.aws.s3Bucket}' does not exist. Create it first.`,
+      );
+    }
+    if (error.name === "InvalidAccessKeyId") {
+      throw new Error(
+        "Invalid AWS Access Key ID. Check your AWS_ACCESS_KEY_ID.",
+      );
+    }
+    if (error.name === "SignatureDoesNotMatch") {
+      throw new Error(
+        "Invalid AWS Secret Access Key. Check your AWS_SECRET_ACCESS_KEY.",
+      );
+    }
+
+    throw new Error(`Failed to upload file: ${error.message}`);
   }
 }
 
