@@ -75,7 +75,7 @@ components:
         data:
           type: object
         pagination:
-          $ref: '#/components/schemas/Pagination'
+          $ref: "#/components/schemas/Pagination"
 
     ErrorResponse:
       type: object
@@ -219,7 +219,7 @@ components:
               example: 3600
               description: Access token expiry in seconds
             user:
-              $ref: '#/components/schemas/UserProfile'
+              $ref: "#/components/schemas/UserProfile"
             needsProfileSetup:
               type: boolean
               example: true
@@ -498,25 +498,47 @@ components:
           type: string
           format: date-time
         author:
-          $ref: '#/components/schemas/PostAuthor'
+          $ref: "#/components/schemas/PostAuthor"
         event:
-          $ref: '#/components/schemas/PostEvent'
+          $ref: "#/components/schemas/PostEvent"
         isLiked:
           type: boolean
           description: Whether the authenticated user has liked this post
         isSaved:
           type: boolean
           description: Whether the authenticated user has saved this post
+        likePreviewUser:
+          type: object
+          nullable: true
+          description: |
+            A preview user who liked the post, used for displaying
+            "Liked by {user} and {N} others" in the mobile UI.
+            Returns the current user if they liked it, otherwise the most recent liker.
+          properties:
+            id:
+              type: string
+              format: uuid
+            fullName:
+              type: string
+              nullable: true
+            avatarUrl:
+              type: string
+              nullable: true
 
     PostDetail:
       allOf:
-        - $ref: '#/components/schemas/Post'
+        - $ref: "#/components/schemas/Post"
         - type: object
           properties:
             comments:
               type: array
               items:
-                $ref: '#/components/schemas/Comment'
+                $ref: "#/components/schemas/Comment"
+
+    ReactionType:
+      type: string
+      enum: [LIKE, LOVE, LAUGH, WOW]
+      description: Type of reaction on a comment
 
     Comment:
       type: object
@@ -543,6 +565,23 @@ components:
             avatarUrl:
               type: string
               nullable: true
+        reactionCounts:
+          type: object
+          description: |
+            Breakdown of reaction counts by type.
+            Example: { "LIKE": 5, "LOVE": 3, "LAUGH": 1 }
+          additionalProperties:
+            type: integer
+          example:
+            LIKE: 5
+            LOVE: 3
+            LAUGH: 1
+            WOW: 0
+        userReaction:
+          type: string
+          nullable: true
+          enum: [LIKE, LOVE, LAUGH, WOW]
+          description: The current user's reaction type on this comment, or null if not reacted
         replies:
           type: array
           items:
@@ -570,6 +609,14 @@ components:
                   avatarUrl:
                     type: string
                     nullable: true
+              reactionCounts:
+                type: object
+                additionalProperties:
+                  type: integer
+              userReaction:
+                type: string
+                nullable: true
+                enum: [LIKE, LOVE, LAUGH, WOW]
 
     CreatePostRequest:
       type: object
@@ -604,7 +651,7 @@ components:
           description: Required when type is EVENT
         eventTime:
           type: string
-          pattern: '^([01]?[0-9]|2[0-3]):[0-5][0-9]$'
+          pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
           example: "14:00"
           description: Required when type is EVENT (HH:MM format)
         location:
@@ -651,7 +698,7 @@ components:
           format: date-time
         eventTime:
           type: string
-          pattern: '^([01]?[0-9]|2[0-3]):[0-5][0-9]$'
+          pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
         location:
           type: string
         capacityMax:
@@ -854,7 +901,7 @@ components:
 
     ClassroomDetail:
       allOf:
-        - $ref: '#/components/schemas/Classroom'
+        - $ref: "#/components/schemas/Classroom"
         - type: object
           properties:
             courses:
@@ -877,11 +924,11 @@ components:
                   upcomingQuizzes:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Quiz'
+                      $ref: "#/components/schemas/Quiz"
             timetableSlots:
               type: array
               items:
-                $ref: '#/components/schemas/TimetableSlot'
+                $ref: "#/components/schemas/TimetableSlot"
 
     TimetableSlot:
       type: object
@@ -917,31 +964,31 @@ components:
         Monday:
           type: array
           items:
-            $ref: '#/components/schemas/TimetableSlot'
+            $ref: "#/components/schemas/TimetableSlot"
         Tuesday:
           type: array
           items:
-            $ref: '#/components/schemas/TimetableSlot'
+            $ref: "#/components/schemas/TimetableSlot"
         Wednesday:
           type: array
           items:
-            $ref: '#/components/schemas/TimetableSlot'
+            $ref: "#/components/schemas/TimetableSlot"
         Thursday:
           type: array
           items:
-            $ref: '#/components/schemas/TimetableSlot'
+            $ref: "#/components/schemas/TimetableSlot"
         Friday:
           type: array
           items:
-            $ref: '#/components/schemas/TimetableSlot'
+            $ref: "#/components/schemas/TimetableSlot"
         Saturday:
           type: array
           items:
-            $ref: '#/components/schemas/TimetableSlot'
+            $ref: "#/components/schemas/TimetableSlot"
         Sunday:
           type: array
           items:
-            $ref: '#/components/schemas/TimetableSlot'
+            $ref: "#/components/schemas/TimetableSlot"
 
     Quiz:
       type: object
@@ -1078,7 +1125,17 @@ components:
           format: uuid
         type:
           type: string
-          enum: [LIKE, COMMENT, EVENT_REMINDER, ANNOUNCEMENT, URGENT_ANNOUNCEMENT, EVENT_FULL, NEW_EVENT, MENTION]
+          enum:
+            [
+              LIKE,
+              COMMENT,
+              EVENT_REMINDER,
+              ANNOUNCEMENT,
+              URGENT_ANNOUNCEMENT,
+              EVENT_FULL,
+              NEW_EVENT,
+              MENTION,
+            ]
         title:
           type: string
         message:
@@ -1103,7 +1160,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           example:
             success: false
             error:
@@ -1114,7 +1171,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           example:
             success: false
             error:
@@ -1125,7 +1182,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           example:
             success: false
             error:
@@ -1136,13 +1193,13 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ValidationErrorResponse'
+            $ref: "#/components/schemas/ValidationErrorResponse"
     Conflict:
       description: Resource conflict (e.g., already exists)
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           example:
             success: false
             error:
@@ -1153,7 +1210,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           example:
             success: false
             error:
@@ -1172,7 +1229,7 @@ paths:
       description: Check if the API server is running
       operationId: healthCheck
       responses:
-        '200':
+        "200":
           description: Server is healthy
           content:
             application/json:
@@ -1206,35 +1263,35 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SendOtpRequest'
+              $ref: "#/components/schemas/SendOtpRequest"
       responses:
-        '200':
+        "200":
           description: OTP sent successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SendOtpResponse'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '404':
+                $ref: "#/components/schemas/SendOtpResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
           description: Student not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 success: false
                 error:
                   code: USER_NOT_FOUND
                   message: "Student not found. Please contact administration."
-        '429':
-          $ref: '#/components/responses/RateLimited'
-        '500':
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
           description: Failed to send OTP email
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /auth/resend-otp:
     post:
@@ -1249,9 +1306,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SendOtpRequest'
+              $ref: "#/components/schemas/SendOtpRequest"
       responses:
-        '200':
+        "200":
           description: OTP resent successfully
           content:
             application/json:
@@ -1276,12 +1333,12 @@ paths:
                         type: integer
                         example: 60
                         description: OTP expiry in seconds
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '429':
-          $ref: '#/components/responses/RateLimited'
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
 
   /auth/verify-otp:
     post:
@@ -1297,20 +1354,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VerifyOtpRequest'
+              $ref: "#/components/schemas/VerifyOtpRequest"
       responses:
-        '200':
+        "200":
           description: Authentication successful
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VerifyOtpResponse'
-        '400':
+                $ref: "#/components/schemas/VerifyOtpResponse"
+        "400":
           description: Invalid or expired OTP
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               examples:
                 invalid_otp:
                   summary: Invalid OTP
@@ -1333,8 +1390,8 @@ paths:
                     error:
                       code: OTP_MAX_ATTEMPTS
                       message: "Maximum verification attempts exceeded"
-        '429':
-          $ref: '#/components/responses/RateLimited'
+        "429":
+          $ref: "#/components/responses/RateLimited"
 
   /auth/refresh-token:
     post:
@@ -1347,22 +1404,22 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RefreshTokenRequest'
+              $ref: "#/components/schemas/RefreshTokenRequest"
       responses:
-        '200':
+        "200":
           description: Token refreshed successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RefreshTokenResponse'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
+                $ref: "#/components/schemas/RefreshTokenResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
           description: Invalid or expired refresh token
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 success: false
                 error:
@@ -1379,9 +1436,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LogoutRequest'
+              $ref: "#/components/schemas/LogoutRequest"
       responses:
-        '200':
+        "200":
           description: Logged out successfully
           content:
             application/json:
@@ -1405,7 +1462,7 @@ paths:
       security:
         - BearerAuth: []
       responses:
-        '200':
+        "200":
           description: User profile retrieved
           content:
             application/json:
@@ -1416,11 +1473,11 @@ paths:
                     type: boolean
                     example: true
                   data:
-                    $ref: '#/components/schemas/UserProfile'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                    $ref: "#/components/schemas/UserProfile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
     put:
       tags: [Users]
       summary: Update user profile
@@ -1433,9 +1490,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ProfileUpdateRequest'
+              $ref: "#/components/schemas/ProfileUpdateRequest"
       responses:
-        '200':
+        "200":
           description: Profile updated
           content:
             application/json:
@@ -1449,11 +1506,11 @@ paths:
                     type: string
                     example: "Profile updated successfully"
                   data:
-                    $ref: '#/components/schemas/UserProfile'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+                    $ref: "#/components/schemas/UserProfile"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /users/profile/{userId}:
     get:
@@ -1472,7 +1529,7 @@ paths:
             format: uuid
           description: User UUID
       responses:
-        '200':
+        "200":
           description: User profile retrieved
           content:
             application/json:
@@ -1483,11 +1540,11 @@ paths:
                     type: boolean
                     example: true
                   data:
-                    $ref: '#/components/schemas/UserProfile'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                    $ref: "#/components/schemas/UserProfile"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /users/profile/setup:
     post:
@@ -1504,9 +1561,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ProfileSetupRequest'
+              $ref: "#/components/schemas/ProfileSetupRequest"
       responses:
-        '200':
+        "200":
           description: Profile setup completed
           content:
             application/json:
@@ -1520,17 +1577,17 @@ paths:
                     type: string
                     example: "Profile setup completed"
                   data:
-                    $ref: '#/components/schemas/UserProfile'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
+                    $ref: "#/components/schemas/UserProfile"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
           description: Profile already set up
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 success: false
                 error:
@@ -1560,7 +1617,7 @@ paths:
                   format: binary
                   description: Image file (JPEG, PNG, GIF, WebP, max 5MB)
       responses:
-        '200':
+        "200":
           description: Avatar uploaded
           content:
             application/json:
@@ -1579,14 +1636,14 @@ paths:
                       avatarUrl:
                         type: string
                         format: uri
-        '400':
+        "400":
           description: No file uploaded or invalid file type
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
     delete:
       tags: [Users]
       summary: Delete user avatar
@@ -1595,7 +1652,7 @@ paths:
       security:
         - BearerAuth: []
       responses:
-        '200':
+        "200":
           description: Avatar deleted
           content:
             application/json:
@@ -1608,8 +1665,8 @@ paths:
                   message:
                     type: string
                     example: "Avatar deleted successfully"
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /users/search:
     get:
@@ -1639,7 +1696,7 @@ paths:
             maximum: 100
             default: 20
       responses:
-        '200':
+        "200":
           description: Search results
           content:
             application/json:
@@ -1652,11 +1709,11 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: '#/components/schemas/UserSearchResult'
+                      $ref: "#/components/schemas/UserSearchResult"
                   pagination:
-                    $ref: '#/components/schemas/Pagination'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+                    $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   # ─── Feed / Posts ──────────────────────────────────────
   /feed/posts:
@@ -1700,7 +1757,7 @@ paths:
             maximum: 100
             default: 20
       responses:
-        '200':
+        "200":
           description: List of posts
           content:
             application/json:
@@ -1713,9 +1770,9 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Post'
+                      $ref: "#/components/schemas/Post"
                   pagination:
-                    $ref: '#/components/schemas/Pagination'
+                    $ref: "#/components/schemas/Pagination"
     post:
       tags: [Feed]
       summary: Create post (Admin only)
@@ -1769,9 +1826,9 @@ paths:
                   type: boolean
           application/json:
             schema:
-              $ref: '#/components/schemas/CreatePostRequest'
+              $ref: "#/components/schemas/CreatePostRequest"
       responses:
-        '201':
+        "201":
           description: Post created
           content:
             application/json:
@@ -1785,13 +1842,13 @@ paths:
                     type: string
                     example: "Post created successfully"
                   data:
-                    $ref: '#/components/schemas/Post'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                    $ref: "#/components/schemas/Post"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /feed/posts/{id}:
     get:
@@ -1810,7 +1867,7 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Post details with comments
           content:
             application/json:
@@ -1821,11 +1878,11 @@ paths:
                     type: boolean
                     example: true
                   data:
-                    $ref: '#/components/schemas/PostDetail'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                    $ref: "#/components/schemas/PostDetail"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
     put:
       tags: [Feed]
       summary: Update post (Admin only)
@@ -1880,9 +1937,9 @@ paths:
                   type: boolean
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdatePostRequest'
+              $ref: "#/components/schemas/UpdatePostRequest"
       responses:
-        '200':
+        "200":
           description: Post updated
           content:
             application/json:
@@ -1896,15 +1953,15 @@ paths:
                     type: string
                     example: "Post updated successfully"
                   data:
-                    $ref: '#/components/schemas/Post'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                    $ref: "#/components/schemas/Post"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /feed/posts/{id}/like:
     post:
@@ -1922,7 +1979,7 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Post liked
           content:
             application/json:
@@ -1941,16 +1998,16 @@ paths:
                       liked:
                         type: boolean
                         example: true
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
           description: Already liked
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 success: false
                 error:
@@ -1971,7 +2028,7 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Post unliked
           content:
             application/json:
@@ -1990,8 +2047,8 @@ paths:
                       liked:
                         type: boolean
                         example: false
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /feed/posts/{id}/comments:
     post:
@@ -2015,9 +2072,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateCommentRequest'
+              $ref: "#/components/schemas/CreateCommentRequest"
       responses:
-        '201':
+        "201":
           description: Comment added
           content:
             application/json:
@@ -2055,12 +2112,185 @@ paths:
                           avatarUrl:
                             type: string
                             nullable: true
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /feed/posts/{id}/comments/{commentId}:
+    delete:
+      tags: [Feed]
+      summary: Delete a comment
+      description: |
+        Delete a comment from a post. Only the comment author or an admin can delete.
+        Deleting a parent comment also removes all its replies.
+        The post's commentsCount is decremented accordingly.
+      operationId: deleteComment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Post ID
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Comment ID
+      responses:
+        "200":
+          description: Comment deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Comment deleted successfully"
+                  data:
+                    type: object
+                    properties:
+                      deleted:
+                        type: boolean
+                        example: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /feed/posts/{id}/comments/{commentId}/react:
+    post:
+      tags: [Feed]
+      summary: React to a comment
+      description: |
+        Add a reaction to a comment. Supported reactions: LIKE, LOVE, LAUGH, WOW.
+        - If the user has no existing reaction, creates a new one.
+        - If the user already has the **same** reaction, it is toggled off (removed).
+        - If the user has a **different** reaction, it is updated to the new type.
+        Creates a notification for the comment author.
+      operationId: reactToComment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Post ID
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Comment ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reactionType:
+                  type: string
+                  enum: [LIKE, LOVE, LAUGH, WOW]
+                  default: LIKE
+                  description: Type of reaction. Defaults to LIKE if omitted.
+      responses:
+        "200":
+          description: Reaction added, updated, or removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Reaction added"
+                  data:
+                    type: object
+                    properties:
+                      reacted:
+                        type: boolean
+                        description: true if reaction exists, false if removed
+                      reactionType:
+                        type: string
+                        nullable: true
+                        enum: [LIKE, LOVE, LAUGH, WOW]
+                        description: Current reaction type, null if removed
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Feed]
+      summary: Remove reaction from a comment
+      description: Remove any reaction the authenticated user has on this comment.
+      operationId: unreactToComment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Post ID
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Comment ID
+      responses:
+        "200":
+          description: Reaction removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Reaction removed"
+                  data:
+                    type: object
+                    properties:
+                      reacted:
+                        type: boolean
+                        example: false
+                      reactionType:
+                        type: string
+                        nullable: true
+                        example: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /feed/posts/{id}/save:
     post:
@@ -2077,7 +2307,7 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Post saved
           content:
             application/json:
@@ -2096,12 +2326,12 @@ paths:
                       saved:
                         type: boolean
                         example: true
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
     delete:
       tags: [Feed]
       summary: Unsave post
@@ -2116,7 +2346,7 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Post unsaved
           content:
             application/json:
@@ -2135,8 +2365,8 @@ paths:
                       saved:
                         type: boolean
                         example: false
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /feed/posts/{id}/share:
     post:
@@ -2154,7 +2384,7 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Post shared
           content:
             application/json:
@@ -2173,10 +2403,10 @@ paths:
                       shared:
                         type: boolean
                         example: true
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /feed/saved:
     get:
@@ -2201,7 +2431,7 @@ paths:
             maximum: 100
             default: 20
       responses:
-        '200':
+        "200":
           description: Saved posts list
           content:
             application/json:
@@ -2215,7 +2445,7 @@ paths:
                     type: array
                     items:
                       allOf:
-                        - $ref: '#/components/schemas/Post'
+                        - $ref: "#/components/schemas/Post"
                         - type: object
                           properties:
                             savedAt:
@@ -2225,9 +2455,9 @@ paths:
                               type: boolean
                               example: true
                   pagination:
-                    $ref: '#/components/schemas/Pagination'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+                    $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   # ─── Events ──────────────────────────────────────
   /events:
@@ -2265,7 +2495,7 @@ paths:
             maximum: 100
             default: 20
       responses:
-        '200':
+        "200":
           description: List of events
           content:
             application/json:
@@ -2278,9 +2508,9 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Event'
+                      $ref: "#/components/schemas/Event"
                   pagination:
-                    $ref: '#/components/schemas/Pagination'
+                    $ref: "#/components/schemas/Pagination"
 
   /events/my-registrations:
     get:
@@ -2311,7 +2541,7 @@ paths:
             maximum: 100
             default: 20
       responses:
-        '200':
+        "200":
           description: Registered events
           content:
             application/json:
@@ -2325,7 +2555,7 @@ paths:
                     type: array
                     items:
                       allOf:
-                        - $ref: '#/components/schemas/Event'
+                        - $ref: "#/components/schemas/Event"
                         - type: object
                           properties:
                             registeredAt:
@@ -2335,9 +2565,9 @@ paths:
                               type: boolean
                               example: true
                   pagination:
-                    $ref: '#/components/schemas/Pagination'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+                    $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /events/{id}:
     get:
@@ -2353,7 +2583,7 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Event details
           content:
             application/json:
@@ -2364,11 +2594,11 @@ paths:
                     type: boolean
                     example: true
                   data:
-                    $ref: '#/components/schemas/Event'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                    $ref: "#/components/schemas/Event"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /events/{id}/register:
     post:
@@ -2389,7 +2619,7 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Registration successful
           content:
             application/json:
@@ -2403,13 +2633,13 @@ paths:
                     type: string
                     example: "Successfully registered for event"
                   data:
-                    $ref: '#/components/schemas/Event'
-        '400':
+                    $ref: "#/components/schemas/Event"
+        "400":
           description: Registration failed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               examples:
                 event_full:
                   summary: Event is full
@@ -2432,10 +2662,10 @@ paths:
                     error:
                       code: ALREADY_REGISTERED
                       message: "You are already registered for this event"
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
     delete:
       tags: [Events]
       summary: Cancel event registration
@@ -2451,7 +2681,7 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Registration cancelled
           content:
             application/json:
@@ -2470,14 +2700,14 @@ paths:
                       registered:
                         type: boolean
                         example: false
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
           description: Registration not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   # ─── Groups ──────────────────────────────────────
   /groups:
@@ -2514,7 +2744,7 @@ paths:
             maximum: 100
             default: 20
       responses:
-        '200':
+        "200":
           description: List of groups
           content:
             application/json:
@@ -2527,9 +2757,9 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Group'
+                      $ref: "#/components/schemas/Group"
                   pagination:
-                    $ref: '#/components/schemas/Pagination'
+                    $ref: "#/components/schemas/Pagination"
 
   /groups/categories:
     get:
@@ -2538,7 +2768,7 @@ paths:
       description: Returns a list of group categories with the number of active groups in each.
       operationId: getGroupCategories
       responses:
-        '200':
+        "200":
           description: Category list
           content:
             application/json:
@@ -2551,7 +2781,7 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: '#/components/schemas/GroupCategory'
+                      $ref: "#/components/schemas/GroupCategory"
 
   /groups/my-groups:
     get:
@@ -2576,7 +2806,7 @@ paths:
             maximum: 100
             default: 20
       responses:
-        '200':
+        "200":
           description: User's groups
           content:
             application/json:
@@ -2590,7 +2820,7 @@ paths:
                     type: array
                     items:
                       allOf:
-                        - $ref: '#/components/schemas/Group'
+                        - $ref: "#/components/schemas/Group"
                         - type: object
                           properties:
                             isMember:
@@ -2603,9 +2833,9 @@ paths:
                               type: string
                               format: date-time
                   pagination:
-                    $ref: '#/components/schemas/Pagination'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+                    $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /groups/{id}:
     get:
@@ -2620,7 +2850,7 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Group details
           content:
             application/json:
@@ -2631,9 +2861,9 @@ paths:
                     type: boolean
                     example: true
                   data:
-                    $ref: '#/components/schemas/Group'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                    $ref: "#/components/schemas/Group"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /groups/{id}/members:
     get:
@@ -2661,7 +2891,7 @@ paths:
             maximum: 100
             default: 20
       responses:
-        '200':
+        "200":
           description: Group members list
           content:
             application/json:
@@ -2674,11 +2904,11 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: '#/components/schemas/GroupMember'
+                      $ref: "#/components/schemas/GroupMember"
                   pagination:
-                    $ref: '#/components/schemas/Pagination'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                    $ref: "#/components/schemas/Pagination"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /groups/{id}/join:
     post:
@@ -2694,7 +2924,7 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Joined group successfully
           content:
             application/json:
@@ -2708,23 +2938,23 @@ paths:
                     type: string
                     example: "Successfully joined group"
                   data:
-                    $ref: '#/components/schemas/Group'
-        '400':
+                    $ref: "#/components/schemas/Group"
+        "400":
           description: Group is not active
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
           description: Already a member
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 success: false
                 error:
@@ -2745,7 +2975,7 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Left group
           content:
             application/json:
@@ -2764,16 +2994,16 @@ paths:
                       isMember:
                         type: boolean
                         example: false
-        '400':
+        "400":
           description: Cannot leave as only admin
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   # ─── Classrooms ──────────────────────────────────────
   /classrooms:
@@ -2799,7 +3029,7 @@ paths:
             maximum: 100
             default: 20
       responses:
-        '200':
+        "200":
           description: List of classrooms
           content:
             application/json:
@@ -2812,11 +3042,11 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Classroom'
+                      $ref: "#/components/schemas/Classroom"
                   pagination:
-                    $ref: '#/components/schemas/Pagination'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+                    $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
     post:
       tags: [Classrooms]
       summary: Create classroom (Admin only)
@@ -2828,9 +3058,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateClassroomRequest'
+              $ref: "#/components/schemas/CreateClassroomRequest"
       responses:
-        '201':
+        "201":
           description: Classroom created
           content:
             application/json:
@@ -2844,15 +3074,15 @@ paths:
                     type: string
                     example: "Classroom created successfully"
                   data:
-                    $ref: '#/components/schemas/Classroom'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/Conflict'
+                    $ref: "#/components/schemas/Classroom"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
   /classrooms/{id}:
     get:
@@ -2870,7 +3100,7 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Classroom details
           content:
             application/json:
@@ -2881,13 +3111,13 @@ paths:
                     type: boolean
                     example: true
                   data:
-                    $ref: '#/components/schemas/ClassroomDetail'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                    $ref: "#/components/schemas/ClassroomDetail"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /classrooms/{id}/timetable:
     get:
@@ -2905,7 +3135,7 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Timetable grouped by day
           content:
             application/json:
@@ -2916,11 +3146,11 @@ paths:
                     type: boolean
                     example: true
                   data:
-                    $ref: '#/components/schemas/TimetableByDay'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                    $ref: "#/components/schemas/TimetableByDay"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /classrooms/{id}/quizzes:
     get:
@@ -2951,7 +3181,7 @@ paths:
             maximum: 100
             default: 20
       responses:
-        '200':
+        "200":
           description: Upcoming quizzes
           content:
             application/json:
@@ -2964,13 +3194,13 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Quiz'
+                      $ref: "#/components/schemas/Quiz"
                   pagination:
-                    $ref: '#/components/schemas/Pagination'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                    $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /classrooms/{id}/announcements:
     get:
@@ -3001,7 +3231,7 @@ paths:
             maximum: 100
             default: 20
       responses:
-        '200':
+        "200":
           description: Announcements list
           content:
             application/json:
@@ -3014,13 +3244,13 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Announcement'
+                      $ref: "#/components/schemas/Announcement"
                   pagination:
-                    $ref: '#/components/schemas/Pagination'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                    $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
     post:
       tags: [Classrooms]
       summary: Create announcement (Class Rep only)
@@ -3039,9 +3269,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateAnnouncementRequest'
+              $ref: "#/components/schemas/CreateAnnouncementRequest"
       responses:
-        '201':
+        "201":
           description: Announcement created
           content:
             application/json:
@@ -3055,15 +3285,15 @@ paths:
                     type: string
                     example: "Announcement created successfully"
                   data:
-                    $ref: '#/components/schemas/Announcement'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                    $ref: "#/components/schemas/Announcement"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /classrooms/{id}/announcements/{announcementId}:
     put:
@@ -3093,9 +3323,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateAnnouncementRequest'
+              $ref: "#/components/schemas/UpdateAnnouncementRequest"
       responses:
-        '200':
+        "200":
           description: Announcement updated
           content:
             application/json:
@@ -3109,15 +3339,15 @@ paths:
                     type: string
                     example: "Announcement updated successfully"
                   data:
-                    $ref: '#/components/schemas/Announcement'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                    $ref: "#/components/schemas/Announcement"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
     delete:
       tags: [Classrooms]
       summary: Delete announcement (Class Rep only)
@@ -3141,7 +3371,7 @@ paths:
             format: uuid
           description: Announcement ID
       responses:
-        '200':
+        "200":
           description: Announcement deleted
           content:
             application/json:
@@ -3154,12 +3384,12 @@ paths:
                   message:
                     type: string
                     example: "Announcement deleted successfully"
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   # ─── Notifications ──────────────────────────────────────
   /notifications:
@@ -3191,7 +3421,7 @@ paths:
             maximum: 100
             default: 20
       responses:
-        '200':
+        "200":
           description: Notifications list
           content:
             application/json:
@@ -3207,14 +3437,14 @@ paths:
                       notifications:
                         type: array
                         items:
-                          $ref: '#/components/schemas/Notification'
+                          $ref: "#/components/schemas/Notification"
                       unreadCount:
                         type: integer
                         example: 5
                   pagination:
-                    $ref: '#/components/schemas/Pagination'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+                    $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /notifications/unread-count:
     get:
@@ -3224,7 +3454,7 @@ paths:
       security:
         - BearerAuth: []
       responses:
-        '200':
+        "200":
           description: Unread count
           content:
             application/json:
@@ -3240,8 +3470,8 @@ paths:
                       unreadCount:
                         type: integer
                         example: 5
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /notifications/read-all:
     put:
@@ -3251,7 +3481,7 @@ paths:
       security:
         - BearerAuth: []
       responses:
-        '200':
+        "200":
           description: All notifications marked as read
           content:
             application/json:
@@ -3264,8 +3494,8 @@ paths:
                   message:
                     type: string
                     example: "All notifications marked as read"
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /notifications/clear-read:
     delete:
@@ -3276,7 +3506,7 @@ paths:
       security:
         - BearerAuth: []
       responses:
-        '200':
+        "200":
           description: Read notifications cleared
           content:
             application/json:
@@ -3295,8 +3525,8 @@ paths:
                       deleted:
                         type: integer
                         example: 5
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /notifications/{id}/read:
     put:
@@ -3312,7 +3542,7 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Notification marked as read
           content:
             application/json:
@@ -3331,12 +3561,12 @@ paths:
                       isRead:
                         type: boolean
                         example: true
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /notifications/{id}:
     delete:
@@ -3352,7 +3582,7 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Notification deleted
           content:
             application/json:
@@ -3365,9 +3595,9 @@ paths:
                   message:
                     type: string
                     example: "Notification deleted"
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
