@@ -15,6 +15,7 @@ import {
   createCommentValidation,
 } from "../middleware/validation.middleware.js";
 import { uploadLimiter } from "../middleware/rateLimit.middleware.js";
+import { param, body } from "express-validator";
 
 const router = Router();
 
@@ -133,6 +134,43 @@ router.post(
   authenticate,
   validate([...postIdValidation, ...createCommentValidation]),
   feedController.addComment,
+);
+
+// Delete a comment (author or admin)
+router.delete(
+  "/posts/:id/comments/:commentId",
+  authenticate,
+  validate([
+    ...postIdValidation,
+    param("commentId").isUUID().withMessage("Invalid comment ID"),
+  ]),
+  feedController.deleteComment,
+);
+
+// React to a comment (like, love, laugh, wow)
+router.post(
+  "/posts/:id/comments/:commentId/react",
+  authenticate,
+  validate([
+    ...postIdValidation,
+    param("commentId").isUUID().withMessage("Invalid comment ID"),
+    body("reactionType")
+      .optional()
+      .isIn(["LIKE", "LOVE", "LAUGH", "WOW"])
+      .withMessage("Reaction type must be one of: LIKE, LOVE, LAUGH, WOW"),
+  ]),
+  feedController.reactToComment,
+);
+
+// Remove reaction from a comment
+router.delete(
+  "/posts/:id/comments/:commentId/react",
+  authenticate,
+  validate([
+    ...postIdValidation,
+    param("commentId").isUUID().withMessage("Invalid comment ID"),
+  ]),
+  feedController.unreactToComment,
 );
 
 /**
