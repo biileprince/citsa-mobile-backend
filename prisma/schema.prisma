@@ -57,6 +57,13 @@ enum GroupRole {
   ADMIN
 }
 
+enum ReactionType {
+  LIKE
+  LOVE
+  LAUGH
+  WOW
+}
+
 // Models
 
 model User {
@@ -219,13 +226,14 @@ model Comment {
 }
 
 model Like {
-  id           String   @id @default(uuid())
-  userId       String   @map("user_id")
-  likeableType String   @map("likeable_type") @db.VarChar(50) // 'post' or 'comment'
-  likeableId   String   @map("likeable_id")
-  postId       String?  @map("post_id")
-  commentId    String?  @map("comment_id")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id           String       @id @default(uuid())
+  userId       String       @map("user_id")
+  likeableType String       @map("likeable_type") @db.VarChar(50) // 'post' or 'comment'
+  likeableId   String       @map("likeable_id")
+  postId       String?      @map("post_id")
+  commentId    String?      @map("comment_id")
+  reactionType ReactionType @default(LIKE) @map("reaction_type")
+  createdAt    DateTime     @default(now()) @map("created_at")
 
   // Relations
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)

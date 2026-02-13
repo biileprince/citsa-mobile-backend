@@ -146,6 +146,31 @@ async function main() {
   ]);
   console.log(`✅ Created ${students.length} sample students`);
 
+  // Create additional users
+  const additionalUsers = await Promise.all([
+    prisma.user.upsert({
+      where: { studentId: "PS/CSC/22/0138" },
+      update: {},
+      create: {
+        studentId: "PS/CSC/22/0138",
+        email: "zakjnr5@gmail.com",
+        role: UserRole.ADMIN,
+        isVerified: true,
+      },
+    }),
+    prisma.user.upsert({
+      where: { studentId: "PS/CSC/22/0001" },
+      update: {},
+      create: {
+        studentId: "PS/CSC/22/0001",
+        email: "bosszak94@gmail.com",
+        role: UserRole.CLASS_REP,
+        isVerified: true,
+      },
+    }),
+  ]);
+  console.log(`✅ Created ${additionalUsers.length} additional users`);
+
   // Create sample Groups
   const groups = await Promise.all([
     prisma.group.upsert({
