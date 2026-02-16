@@ -63,6 +63,47 @@ async function sendEmail(
 }
 
 /**
+ * Shared email layout wrapper
+ */
+function emailLayout(content: string): string {
+  const year = new Date().getFullYear();
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>CITSA</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;">
+    <tr>
+      <td align="center" style="padding:40px 20px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
+          <tr>
+            <td style="padding:32px 40px 24px;text-align:center;border-bottom:1px solid #e4e4e7;">
+              <span style="font-size:20px;font-weight:700;color:#18181b;letter-spacing:-0.3px;">CITSA</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 40px;">
+              ${content}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 40px;text-align:center;border-top:1px solid #e4e4e7;">
+              <p style="margin:0;font-size:12px;color:#a1a1aa;line-height:1.5;">&copy; ${year} CITSA &mdash; Computer &amp; IT Students Association</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+/**
  * Send OTP email to user
  */
 export async function sendOtpEmail(
@@ -75,50 +116,25 @@ export async function sendOtpEmail(
       return false;
     }
 
-    const htmlBody = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Verification Code</title>
-        </head>
-        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f5f5f5;">
-          <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 40px;">
-            <div style="text-align: center; margin-bottom: 30px;">
-              <h1 style="color: #1a1a2e; margin: 0;">CITSA App</h1>
-              <p style="color: #666; margin-top: 5px;">Computer & IT Students Association</p>
-            </div>
-            
-            <div style="background-color: #f8f9fa; border-radius: 10px; padding: 30px; text-align: center;">
-              <h2 style="color: #333; margin-top: 0;">Your Verification Code</h2>
-              <p style="color: #666; margin-bottom: 20px;">Enter this code to verify your identity:</p>
-              
-              <div style="background-color: #1a1a2e; border-radius: 8px; padding: 20px; margin: 20px 0;">
-                <span style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #ffffff;">${otpCode}</span>
-              </div>
-              
-              <p style="color: #dc3545; font-size: 14px; margin-top: 20px;">
-                ⏱️ This code expires in ${Math.floor(config.otp.expirySeconds / 60)} minutes
-              </p>
-            </div>
-            
-            <div style="margin-top: 30px; text-align: center; color: #666; font-size: 12px;">
-              <p>If you didn't request this code, please ignore this email.</p>
-              <p style="margin-top: 20px;">
-                © ${new Date().getFullYear()} CITSA - Computer & IT Students Association
-              </p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
+    const expiryMin = Math.floor(config.otp.expirySeconds / 60);
 
-    const textBody = `Your CITSA App verification code is: ${otpCode}. This code expires in ${Math.floor(config.otp.expirySeconds / 60)} minutes.`;
+    const content = `
+      <p style="margin:0 0 16px;font-size:15px;color:#3f3f46;line-height:1.6;">Enter the following code to verify your identity.</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td align="center" style="padding:20px 0;">
+            <span style="display:inline-block;font-size:32px;font-weight:700;letter-spacing:6px;color:#18181b;background-color:#f4f4f5;padding:16px 32px;border-radius:8px;border:1px solid #e4e4e7;">${otpCode}</span>
+          </td>
+        </tr>
+      </table>
+      <p style="margin:0;font-size:13px;color:#71717a;line-height:1.5;">This code expires in ${expiryMin} minute${expiryMin !== 1 ? "s" : ""}. If you didn't request this, you can safely ignore this email.</p>`;
+
+    const htmlBody = emailLayout(content);
+    const textBody = `Your verification code is: ${otpCode}\n\nThis code expires in ${expiryMin} minute${expiryMin !== 1 ? "s" : ""}. If you didn't request this, you can safely ignore this email.`;
 
     const result = await sendEmail(
       email,
-      "Your CITSA App Verification Code",
+      `${otpCode} is your verification code`,
       htmlBody,
       textBody,
     );
@@ -147,39 +163,20 @@ export async function sendWelcomeEmail(
       return true;
     }
 
-    const htmlBody = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Welcome to CITSA</title>
-      </head>
-      <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f5f5f5;">
-        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 40px;">
-          <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: #1a1a2e; margin: 0;">Welcome to CITSA!</h1>
-            <p style="color: #666; margin-top: 5px;">Computer & IT Students Association</p>
-          </div>
-          <div style="padding: 20px;">
-            <p style="color: #333; font-size: 16px;">Hi ${fullName},</p>
-            <p style="color: #666;">Welcome to the CITSA community! You're now part of a vibrant network of Computer & IT students.</p>
-            <p style="color: #666;">Explore events, connect with peers, and stay updated with the latest happenings.</p>
-          </div>
-          <div style="margin-top: 30px; text-align: center; color: #666; font-size: 12px;">
-            <p>© ${new Date().getFullYear()} CITSA - Computer & IT Students Association</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+    const firstName = fullName.split(" ")[0];
 
-    const textBody = `Hi ${fullName}, welcome to CITSA! You're now part of our community.`;
+    const content = `
+      <p style="margin:0 0 16px;font-size:15px;color:#3f3f46;line-height:1.6;">Hi ${firstName},</p>
+      <p style="margin:0 0 16px;font-size:15px;color:#3f3f46;line-height:1.6;">Your account has been created. You're now part of the CITSA community.</p>
+      <p style="margin:0;font-size:15px;color:#3f3f46;line-height:1.6;">Open the app to explore events, connect with peers, and stay in the loop.</p>`;
 
-    return await sendEmail(email, "Welcome to CITSA!", htmlBody, textBody);
+    const htmlBody = emailLayout(content);
+    const textBody = `Hi ${firstName},\n\nYour account has been created. You're now part of the CITSA community.\n\nOpen the app to explore events, connect with peers, and stay in the loop.`;
+
+    return await sendEmail(email, "Welcome to CITSA", htmlBody, textBody);
   } catch (error) {
     logger.error("Failed to send welcome email:", error);
-    return true; // Don't fail registration
+    return true;
   }
 }
 
@@ -200,43 +197,29 @@ export async function sendEventReminderEmail(
       return true;
     }
 
-    const htmlBody = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Event Reminder</title>
-      </head>
-      <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f5f5f5;">
-        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 40px;">
-          <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: #1a1a2e; margin: 0;">Event Reminder</h1>
-            <p style="color: #666; margin-top: 5px;">CITSA App</p>
-          </div>
-          <div style="padding: 20px;">
-            <p style="color: #333; font-size: 16px;">Hi ${fullName},</p>
-            <p style="color: #666;">This is a reminder for an upcoming event:</p>
-            <div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin: 20px 0;">
-              <h3 style="color: #1a1a2e; margin-top: 0;">${eventTitle}</h3>
-              <p style="color: #666; margin: 5px 0;">📅 ${eventDate} at ${eventTime}</p>
-              <p style="color: #666; margin: 5px 0;">📍 ${location}</p>
-            </div>
-          </div>
-          <div style="margin-top: 30px; text-align: center; color: #666; font-size: 12px;">
-            <p>© ${new Date().getFullYear()} CITSA - Computer & IT Students Association</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+    const firstName = fullName.split(" ")[0];
 
-    const textBody = `Hi ${fullName}, reminder: ${eventTitle} on ${eventDate} at ${eventTime}, ${location}.`;
+    const content = `
+      <p style="margin:0 0 16px;font-size:15px;color:#3f3f46;line-height:1.6;">Hi ${firstName},</p>
+      <p style="margin:0 0 16px;font-size:15px;color:#3f3f46;line-height:1.6;">Reminder for your upcoming event:</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;background-color:#f4f4f5;border-radius:6px;">
+        <tr>
+          <td style="padding:16px 20px;">
+            <p style="margin:0 0 8px;font-size:16px;font-weight:600;color:#18181b;">${eventTitle}</p>
+            <p style="margin:0 0 4px;font-size:14px;color:#52525b;">${eventDate} at ${eventTime}</p>
+            <p style="margin:0;font-size:14px;color:#52525b;">${location}</p>
+          </td>
+        </tr>
+      </table>
+      <p style="margin:0;font-size:13px;color:#71717a;line-height:1.5;">Open the app for more details.</p>`;
+
+    const htmlBody = emailLayout(content);
+    const textBody = `Hi ${firstName},\n\nReminder: ${eventTitle}\n${eventDate} at ${eventTime}\n${location}`;
 
     return await sendEmail(email, `Reminder: ${eventTitle}`, htmlBody, textBody);
   } catch (error) {
     logger.error("Failed to send event reminder email:", error);
-    return true; // Don't fail event registration
+    return true;
   }
 }
 
