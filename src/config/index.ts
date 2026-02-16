@@ -32,24 +32,11 @@ export const config = {
     ),
   },
 
-  // Gmail API (preferred - uses OAuth2, bypasses port blocking)
-  gmail: {
-    clientId: process.env.GMAIL_CLIENT_ID || "",
-    clientSecret: process.env.GMAIL_CLIENT_SECRET || "",
-    refreshToken: process.env.GMAIL_REFRESH_TOKEN || "",
-    fromEmail: process.env.GMAIL_FROM_EMAIL || "",
-    fromName: process.env.GMAIL_FROM_NAME || "CITSA App",
-  },
-
-  // SMTP (fallback if Gmail API not configured)
-  smtp: {
-    host: process.env.SMTP_HOST || "smtp.gmail.com",
-    port: parseInt(process.env.SMTP_PORT || "587", 10),
-    secure: process.env.SMTP_SECURE === "true",
-    user: process.env.SMTP_USER || "",
-    password: process.env.SMTP_PASSWORD || "",
-    fromName: process.env.SMTP_FROM_NAME || "CITSA App",
-    fromEmail: process.env.SMTP_FROM_EMAIL || "noreply@citsa.edu",
+  // Resend API (email delivery)
+  resend: {
+    apiKey: process.env.RESEND_API_KEY || "",
+    fromEmail: process.env.RESEND_FROM_EMAIL || "noreply@clink.citsaucc.org",
+    fromName: process.env.RESEND_FROM_NAME || "CITSA App",
   },
 
   // AWS S3
