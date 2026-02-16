@@ -31,7 +31,7 @@ async function startServer() {
     await prisma.$connect();
     logger.info("✅ Database connected successfully");
 
-    // Initialize email transports (Gmail API preferred, SMTP fallback)
+    // Initialize email transport (Resend API)
     await initializeTransports();
 
     // Verify email configuration
