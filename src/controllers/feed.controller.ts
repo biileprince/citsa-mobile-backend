@@ -170,21 +170,22 @@ export const getPosts = asyncHandler(
 
     // Fetch like preview users for each post
     const postIds = posts.map((p) => p.id);
-    const likePreviewUsers = postIds.length > 0
-      ? await prisma.like.findMany({
-          where: {
-            likeableType: "post",
-            likeableId: { in: postIds },
-          },
-          select: {
-            likeableId: true,
-            user: {
-              select: { id: true, fullName: true, avatarUrl: true },
+    const likePreviewUsers =
+      postIds.length > 0
+        ? await prisma.like.findMany({
+            where: {
+              likeableType: "post",
+              likeableId: { in: postIds },
             },
-          },
-          orderBy: { createdAt: "desc" },
-        })
-      : [];
+            select: {
+              likeableId: true,
+              user: {
+                select: { id: true, fullName: true, avatarUrl: true },
+              },
+            },
+            orderBy: { createdAt: "desc" },
+          })
+        : [];
 
     // Group by post id and take first 2
     const previewByPost = new Map<string, any[]>();
@@ -1007,7 +1008,11 @@ export const unreactToComment = asyncHandler(
       });
     }
 
-    sendSuccess(res, { reacted: false, reactionType: null }, "Reaction removed");
+    sendSuccess(
+      res,
+      { reacted: false, reactionType: null },
+      "Reaction removed",
+    );
   },
 );
 
