@@ -100,6 +100,9 @@ model User {
   shares                   Share[]
   classroomAnnouncements   ClassroomAnnouncement[]
   refreshTokens            RefreshToken[]
+  announcementLikes        AnnouncementLike[]
+  announcementComments     AnnouncementComment[]
+  announcementViews        AnnouncementView[]
 
   @@index([studentId])
   @@index([email])
@@ -356,11 +359,64 @@ model ClassroomAnnouncement {
   // Relations
   classroom Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
   rep       User?     @relation(fields: [repId], references: [id], onDelete: SetNull)
+  likes     AnnouncementLike[]
+  comments  AnnouncementComment[]
+  views     AnnouncementView[]
 
   @@index([classroomId])
   @@index([repId])
   @@index([createdAt(sort: Desc)])
   @@map("classroom_announcements")
+}
+
+model AnnouncementLike {
+  id             String   @id @default(uuid())
+  announcementId String   @map("announcement_id")
+  userId         String   @map("user_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  announcement ClassroomAnnouncement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@index([announcementId])
+  @@index([userId])
+  @@map("announcement_likes")
+}
+
+model AnnouncementComment {
+  id             String   @id @default(uuid())
+  announcementId String   @map("announcement_id")
+  userId         String   @map("user_id")
+  content        String   @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  announcement ClassroomAnnouncement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([announcementId])
+  @@index([userId])
+  @@index([createdAt(sort: Desc)])
+  @@map("announcement_comments")
+}
+
+model AnnouncementView {
+  id             String   @id @default(uuid())
+  announcementId String   @map("announcement_id")
+  userId         String   @map("user_id")
+  viewedAt       DateTime @default(now()) @map("viewed_at")
+
+  // Relations
+  announcement ClassroomAnnouncement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@index([announcementId])
+  @@index([userId])
+  @@map("announcement_views")
 }
 
 model Course {

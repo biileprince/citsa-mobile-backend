@@ -1070,6 +1070,9 @@ components:
           type: integer
         viewsCount:
           type: integer
+        isLiked:
+          type: boolean
+          description: Whether the current user has liked this announcement
         createdAt:
           type: string
           format: date-time
@@ -1088,6 +1091,40 @@ components:
             avatarUrl:
               type: string
               nullable: true
+
+    AnnouncementComment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            fullName:
+              type: string
+              nullable: true
+            avatarUrl:
+              type: string
+              nullable: true
+
+    CreateAnnouncementCommentRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          example: "Thanks for the update!"
 
     CreateAnnouncementRequest:
       type: object
@@ -4413,6 +4450,327 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ─── Announcement Interactions ─────────────────────────
+  /classrooms/{id}/announcements/{announcementId}/like:
+    post:
+      tags: [Classrooms]
+      summary: Like an announcement
+      description: Like a classroom announcement. Returns 409 if already liked.
+      operationId: likeAnnouncement
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Classroom ID
+        - name: announcementId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Announcement ID
+      responses:
+        "200":
+          description: Announcement liked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Announcement liked successfully"
+                  data:
+                    type: object
+                    properties:
+                      liked:
+                        type: boolean
+                        example: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Already liked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  error:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: "You have already liked this announcement"
+    delete:
+      tags: [Classrooms]
+      summary: Unlike an announcement
+      description: Remove your like from a classroom announcement.
+      operationId: unlikeAnnouncement
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Classroom ID
+        - name: announcementId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Announcement ID
+      responses:
+        "200":
+          description: Announcement unliked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Announcement unliked"
+                  data:
+                    type: object
+                    properties:
+                      liked:
+                        type: boolean
+                        example: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /classrooms/{id}/announcements/{announcementId}/comments:
+    get:
+      tags: [Classrooms]
+      summary: Get announcement comments
+      description: Returns paginated comments for an announcement. No replies or reactions on comments.
+      operationId: getAnnouncementComments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Classroom ID
+        - name: announcementId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Announcement ID
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Comments list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AnnouncementComment"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [Classrooms]
+      summary: Add comment to announcement
+      description: Add a comment to a classroom announcement. No replies or reactions on comments.
+      operationId: addAnnouncementComment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Classroom ID
+        - name: announcementId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Announcement ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAnnouncementCommentRequest"
+      responses:
+        "201":
+          description: Comment added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Comment added successfully"
+                  data:
+                    $ref: "#/components/schemas/AnnouncementComment"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /classrooms/{id}/announcements/{announcementId}/comments/{commentId}:
+    delete:
+      tags: [Classrooms]
+      summary: Delete announcement comment
+      description: Delete a comment on an announcement. Only the comment author or an admin can delete.
+      operationId: deleteAnnouncementComment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Classroom ID
+        - name: announcementId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Announcement ID
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Comment ID
+      responses:
+        "200":
+          description: Comment deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Comment deleted successfully"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /classrooms/{id}/announcements/{announcementId}/view:
+    post:
+      tags: [Classrooms]
+      summary: Record announcement view
+      description: Records a unique view per user. Calling multiple times for the same user does not increment the count.
+      operationId: viewAnnouncement
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Classroom ID
+        - name: announcementId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Announcement ID
+      responses:
+        "200":
+          description: View recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "View recorded"
+                  data:
+                    type: object
+                    properties:
+                      viewed:
+                        type: boolean
+                        example: true
+                      viewsCount:
+                        type: integer
+                        example: 42
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
 
