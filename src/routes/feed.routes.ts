@@ -209,4 +209,32 @@ router.post(
   feedController.sharePost,
 );
 
+// ==================== ADMIN ROUTES ====================
+
+/**
+ * @route   DELETE /api/v1/feed/posts/:id
+ * @desc    Delete post (Admin only)
+ * @access  Private (Admin)
+ */
+router.delete(
+  "/posts/:id",
+  authenticate,
+  requireAdmin,
+  validate(postIdValidation),
+  feedController.deletePost,
+);
+
+/**
+ * @route   PATCH /api/v1/feed/posts/:id/pin
+ * @desc    Toggle post pin status (Admin only)
+ * @access  Private (Admin)
+ */
+router.patch(
+  "/posts/:id/pin",
+  authenticate,
+  requireAdmin,
+  validate(postIdValidation),
+  feedController.togglePin,
+);
+
 export default router;

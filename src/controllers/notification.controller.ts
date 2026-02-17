@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import prisma from "../config/database.js";
 import {
   sendSuccess,
+  sendCreated,
   calculatePagination,
   parsePaginationParams,
   getParamAsString,
@@ -183,6 +184,104 @@ export const clearReadNotifications = asyncHandler(
   },
 );
 
+// ==================== ADMIN ENDPOINTS ====================
+
+/**
+ * Send notification to a specific user (Admin only)
+ * POST /api/v1/notifications/send
+ */
+export const sendNotification = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const {
+      userId,
+      type,
+      title,
+      message,
+      relatedEntityType,
+      relatedEntityId,
+    } = req.body;
+
+    // Verify user exists
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw ApiError.notFound("Target user not found");
+    }
+
+    const notification = await prisma.notification.create({
+      data: {
+        userId,
+        type,
+        title,
+        message,
+        relatedEntityType,
+        relatedEntityId,
+      },
+    });
+
+    sendCreated(
+      res,
+      {
+        id: notification.id,
+        userId: notification.userId,
+        type: notification.type,
+        title: notification.title,
+        message: notification.message,
+        createdAt: notification.createdAt,
+      },
+      "Notification sent successfully",
+    );
+  },
+);
+
+/**
+ * Broadcast notification to all or filtered users (Admin only)
+ * POST /api/v1/notifications/broadcast
+ */
+export const broadcastNotification = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const { type, title, message, relatedEntityType, relatedEntityId, role } =
+      req.body;
+
+    // Build user filter
+    const userWhere: any = { isActive: true };
+    if (role && ["STUDENT", "CLASS_REP", "ADMIN"].includes(role)) {
+      userWhere.role = role;
+    }
+
+    const users = await prisma.user.findMany({
+      where: userWhere,
+      select: { id: true },
+    });
+
+    if (users.length === 0) {
+      throw ApiError.badRequest("No users match the filter criteria");
+    }
+
+    // Create notifications in bulk
+    const notifications = users.map((user) => ({
+      userId: user.id,
+      type,
+      title,
+      message,
+      relatedEntityType: relatedEntityType || null,
+      relatedEntityId: relatedEntityId || null,
+    }));
+
+    const result = await prisma.notification.createMany({
+      data: notifications,
+    });
+
+    sendCreated(
+      res,
+      {
+        sentTo: result.count,
+        filter: role || "ALL",
+      },
+      `Notification broadcast to ${result.count} users`,
+    );
+  },
+);
+
 export default {
   getNotifications,
   getUnreadCount,
@@ -190,4 +289,6 @@ export default {
   markAllAsRead,
   deleteNotification,
   clearReadNotifications,
+  sendNotification,
+  broadcastNotification,
 };

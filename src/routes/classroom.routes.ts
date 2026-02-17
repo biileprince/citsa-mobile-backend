@@ -9,8 +9,14 @@ import {
   validate,
   classroomIdValidation,
   announcementIdValidation,
+  announcementCommentValidation,
+  announcementCommentIdValidation,
   createAnnouncementValidation,
   createClassroomValidation,
+  updateClassroomValidation,
+  addCourseValidation,
+  addTimetableSlotValidation,
+  addQuizValidation,
 } from "../middleware/validation.middleware.js";
 
 const router = Router();
@@ -120,6 +126,147 @@ router.delete(
   requireClassRep,
   validate(announcementIdValidation),
   classroomController.deleteAnnouncement,
+);
+
+// ==================== ANNOUNCEMENT INTERACTIONS ====================
+
+/**
+ * @route   POST /api/v1/classrooms/:id/announcements/:announcementId/like
+ * @desc    Like an announcement
+ * @access  Private
+ */
+router.post(
+  "/:id/announcements/:announcementId/like",
+  authenticate,
+  validate(announcementIdValidation),
+  classroomController.likeAnnouncement,
+);
+
+/**
+ * @route   DELETE /api/v1/classrooms/:id/announcements/:announcementId/like
+ * @desc    Unlike an announcement
+ * @access  Private
+ */
+router.delete(
+  "/:id/announcements/:announcementId/like",
+  authenticate,
+  validate(announcementIdValidation),
+  classroomController.unlikeAnnouncement,
+);
+
+/**
+ * @route   GET /api/v1/classrooms/:id/announcements/:announcementId/comments
+ * @desc    Get comments for an announcement
+ * @access  Private
+ */
+router.get(
+  "/:id/announcements/:announcementId/comments",
+  authenticate,
+  validate(announcementIdValidation),
+  classroomController.getAnnouncementComments,
+);
+
+/**
+ * @route   POST /api/v1/classrooms/:id/announcements/:announcementId/comments
+ * @desc    Add comment to announcement
+ * @access  Private
+ */
+router.post(
+  "/:id/announcements/:announcementId/comments",
+  authenticate,
+  validate([...announcementIdValidation, ...announcementCommentValidation]),
+  classroomController.addAnnouncementComment,
+);
+
+/**
+ * @route   DELETE /api/v1/classrooms/:id/announcements/:announcementId/comments/:commentId
+ * @desc    Delete a comment on an announcement
+ * @access  Private (own comment or admin)
+ */
+router.delete(
+  "/:id/announcements/:announcementId/comments/:commentId",
+  authenticate,
+  validate(announcementCommentIdValidation),
+  classroomController.deleteAnnouncementComment,
+);
+
+/**
+ * @route   POST /api/v1/classrooms/:id/announcements/:announcementId/view
+ * @desc    Record a view on an announcement
+ * @access  Private
+ */
+router.post(
+  "/:id/announcements/:announcementId/view",
+  authenticate,
+  validate(announcementIdValidation),
+  classroomController.viewAnnouncement,
+);
+
+// ==================== ADMIN ROUTES ====================
+
+/**
+ * @route   PUT /api/v1/classrooms/:id
+ * @desc    Update classroom (Admin only)
+ * @access  Private (Admin)
+ */
+router.put(
+  "/:id",
+  authenticate,
+  requireAdmin,
+  validate(updateClassroomValidation),
+  classroomController.updateClassroom,
+);
+
+/**
+ * @route   DELETE /api/v1/classrooms/:id
+ * @desc    Delete classroom (Admin only)
+ * @access  Private (Admin)
+ */
+router.delete(
+  "/:id",
+  authenticate,
+  requireAdmin,
+  validate(classroomIdValidation),
+  classroomController.deleteClassroom,
+);
+
+/**
+ * @route   POST /api/v1/classrooms/:id/courses
+ * @desc    Add course to classroom (Admin only)
+ * @access  Private (Admin)
+ */
+router.post(
+  "/:id/courses",
+  authenticate,
+  requireAdmin,
+  validate(addCourseValidation),
+  classroomController.addCourse,
+);
+
+/**
+ * @route   POST /api/v1/classrooms/:id/timetable
+ * @desc    Add timetable slot (Admin only)
+ * @access  Private (Admin)
+ */
+router.post(
+  "/:id/timetable",
+  authenticate,
+  requireAdmin,
+  validate(addTimetableSlotValidation),
+  classroomController.addTimetableSlot,
+);
+
+/**
+ * @route   POST /api/v1/classrooms/:id/quizzes
+ * @desc    Add quiz to classroom (Admin only)
+ * @access  Private (Admin)
+ */
+router.post(
+  "/:id/quizzes",
+  authenticate,
+  requireAdmin,
+  validate(addQuizValidation),
+  classroomController.addQuiz,
 );
 
 export default router;
