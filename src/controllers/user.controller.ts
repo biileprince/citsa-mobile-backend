@@ -303,6 +303,257 @@ export const searchUsers = asyncHandler(
   },
 );
 
+// ==================== ADMIN ENDPOINTS ====================
+
+/**
+ * Get all users (Admin only)
+ * GET /api/v1/users/admin/all
+ */
+export const getAllUsers = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { page, limit, role, search, isActive } = req.query as {
+      page?: string;
+      limit?: string;
+      role?: string;
+      search?: string;
+      isActive?: string;
+    };
+    const pagination = parsePaginationParams(page, limit);
+
+    const where: any = {};
+
+    if (role && ["STUDENT", "CLASS_REP", "ADMIN"].includes(role)) {
+      where.role = role;
+    }
+
+    if (isActive !== undefined) {
+      where.isActive = isActive === "true";
+    }
+
+    if (search) {
+      where.OR = [
+        { fullName: { contains: search } },
+        { studentId: { contains: search } },
+        { email: { contains: search } },
+        { program: { contains: search } },
+      ];
+    }
+
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: pagination.skip,
+        take: pagination.limit,
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    const paginationMeta = calculatePagination(
+      pagination.page,
+      pagination.limit,
+      total,
+    );
+
+    const result = users.map((user) => ({
+      ...transformUser(user),
+      isActive: user.isActive,
+      updatedAt: user.updatedAt,
+    }));
+
+    sendSuccess(res, result, undefined, 200, paginationMeta);
+  },
+);
+
+/**
+ * Get admin dashboard stats
+ * GET /api/v1/users/admin/stats
+ */
+export const getAdminStats = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const [
+      totalUsers,
+      activeUsers,
+      totalPosts,
+      totalEvents,
+      totalGroups,
+      totalClassrooms,
+      newUsersThisMonth,
+      usersByRole,
+    ] = await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({ where: { isActive: true } }),
+      prisma.post.count(),
+      prisma.event.count(),
+      prisma.group.count({ where: { isActive: true } }),
+      prisma.classroom.count({ where: { isActive: true } }),
+      prisma.user.count({
+        where: {
+          createdAt: {
+            gte: new Date(
+              new Date().getFullYear(),
+              new Date().getMonth(),
+              1,
+            ),
+          },
+        },
+      }),
+      prisma.user.groupBy({
+        by: ["role"],
+        _count: { role: true },
+      }),
+    ]);
+
+    const roleBreakdown = usersByRole.reduce(
+      (acc: Record<string, number>, r) => {
+        acc[r.role] = r._count.role;
+        return acc;
+      },
+      {},
+    );
+
+    sendSuccess(res, {
+      totalUsers,
+      activeUsers,
+      inactiveUsers: totalUsers - activeUsers,
+      totalPosts,
+      totalEvents,
+      totalGroups,
+      totalClassrooms,
+      newUsersThisMonth,
+      usersByRole: roleBreakdown,
+    });
+  },
+);
+
+/**
+ * Change user role (Admin only)
+ * PATCH /api/v1/users/admin/:id/role
+ */
+export const changeUserRole = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+    const { role } = req.body as { role: string };
+    const adminId = req.user!.userId;
+
+    // Prevent self-demotion
+    if (id === adminId) {
+      throw ApiError.badRequest("You cannot change your own role");
+    }
+
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      throw ApiError.notFound("User not found");
+    }
+
+    // Prevent demoting the last admin
+    if (user.role === "ADMIN" && role !== "ADMIN") {
+      const adminCount = await prisma.user.count({
+        where: { role: "ADMIN" },
+      });
+      if (adminCount <= 1) {
+        throw ApiError.badRequest(
+          "Cannot demote the last admin. Promote another user first.",
+        );
+      }
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: { role: role as any },
+    });
+
+    sendSuccess(
+      res,
+      transformUser(updatedUser),
+      `User role changed to ${role}`,
+    );
+  },
+);
+
+/**
+ * Toggle user active status (Admin only)
+ * PATCH /api/v1/users/admin/:id/toggle-active
+ */
+export const toggleUserActive = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+    const adminId = req.user!.userId;
+
+    // Prevent self-deactivation
+    if (id === adminId) {
+      throw ApiError.badRequest("You cannot deactivate your own account");
+    }
+
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      throw ApiError.notFound("User not found");
+    }
+
+    // Prevent deactivating the last admin
+    if (user.role === "ADMIN" && user.isActive) {
+      const activeAdminCount = await prisma.user.count({
+        where: { role: "ADMIN", isActive: true },
+      });
+      if (activeAdminCount <= 1) {
+        throw ApiError.badRequest("Cannot deactivate the last active admin");
+      }
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: { isActive: !user.isActive },
+    });
+
+    sendSuccess(
+      res,
+      { ...transformUser(updatedUser), isActive: updatedUser.isActive },
+      `User ${updatedUser.isActive ? "activated" : "deactivated"} successfully`,
+    );
+  },
+);
+
+/**
+ * Delete user (Admin only)
+ * DELETE /api/v1/users/admin/:id
+ */
+export const deleteUser = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+    const adminId = req.user!.userId;
+
+    // Prevent self-deletion
+    if (id === adminId) {
+      throw ApiError.badRequest("You cannot delete your own account");
+    }
+
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      throw ApiError.notFound("User not found");
+    }
+
+    // Prevent deleting the last admin
+    if (user.role === "ADMIN") {
+      const adminCount = await prisma.user.count({
+        where: { role: "ADMIN" },
+      });
+      if (adminCount <= 1) {
+        throw ApiError.badRequest("Cannot delete the last admin");
+      }
+    }
+
+    // Delete avatar from S3 if exists
+    if (user.avatarUrl) {
+      deleteFileByUrl(user.avatarUrl).catch(() => {});
+    }
+
+    // Cascade delete handles posts, comments, likes, etc.
+    await prisma.user.delete({ where: { id } });
+
+    sendSuccess(res, null, "User deleted successfully");
+  },
+);
+
 export default {
   getMyProfile,
   getUserProfile,
@@ -311,4 +562,9 @@ export default {
   uploadAvatar,
   deleteAvatar,
   searchUsers,
+  getAllUsers,
+  getAdminStats,
+  changeUserRole,
+  toggleUserActive,
+  deleteUser,
 };

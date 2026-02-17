@@ -193,7 +193,9 @@ export async function sendEventReminderEmail(
 ): Promise<boolean> {
   try {
     if (!isReady) {
-      logger.warn(`Resend not available - skipping event reminder for ${email}`);
+      logger.warn(
+        `Resend not available - skipping event reminder for ${email}`,
+      );
       return true;
     }
 
@@ -216,7 +218,12 @@ export async function sendEventReminderEmail(
     const htmlBody = emailLayout(content);
     const textBody = `Hi ${firstName},\n\nReminder: ${eventTitle}\n${eventDate} at ${eventTime}\n${location}`;
 
-    return await sendEmail(email, `Reminder: ${eventTitle}`, htmlBody, textBody);
+    return await sendEmail(
+      email,
+      `Reminder: ${eventTitle}`,
+      htmlBody,
+      textBody,
+    );
   } catch (error) {
     logger.error("Failed to send event reminder email:", error);
     return true;

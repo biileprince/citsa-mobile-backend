@@ -1,9 +1,11 @@
 import { Router } from "express";
 import notificationController from "../controllers/notification.controller.js";
-import { authenticate } from "../middleware/auth.middleware.js";
+import { authenticate, requireAdmin } from "../middleware/auth.middleware.js";
 import {
   validate,
   notificationIdValidation,
+  sendNotificationValidation,
+  broadcastNotificationValidation,
 } from "../middleware/validation.middleware.js";
 
 const router = Router();
@@ -66,6 +68,34 @@ router.delete(
   authenticate,
   validate(notificationIdValidation),
   notificationController.deleteNotification,
+);
+
+// ==================== ADMIN ROUTES ====================
+
+/**
+ * @route   POST /api/v1/notifications/send
+ * @desc    Send notification to specific user (Admin only)
+ * @access  Private (Admin)
+ */
+router.post(
+  "/send",
+  authenticate,
+  requireAdmin,
+  validate(sendNotificationValidation),
+  notificationController.sendNotification,
+);
+
+/**
+ * @route   POST /api/v1/notifications/broadcast
+ * @desc    Broadcast notification to all/filtered users (Admin only)
+ * @access  Private (Admin)
+ */
+router.post(
+  "/broadcast",
+  authenticate,
+  requireAdmin,
+  validate(broadcastNotificationValidation),
+  notificationController.broadcastNotification,
 );
 
 export default router;
