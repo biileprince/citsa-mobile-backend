@@ -22,6 +22,7 @@ function transformClassroom(classroom: any) {
     yearGroup: classroom.yearGroup,
     graduationYear: classroom.graduationYear,
     semester: classroom.semester,
+    program: classroom.program,
     isActive: classroom.isActive,
     createdAt: classroom.createdAt,
     courses: classroom.courses?.map((course: any) => ({
@@ -53,19 +54,20 @@ function transformClassroom(classroom: any) {
  */
 export const createClassroom = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const { yearGroup, graduationYear, semester, isActive } = req.body;
+    const { yearGroup, graduationYear, semester, program, isActive } = req.body;
 
     // Check if classroom already exists
     const existing = await prisma.classroom.findFirst({
       where: {
         yearGroup,
         semester: semester.toString(),
+        program,
       },
     });
 
     if (existing) {
       throw ApiError.conflict(
-        `Classroom for ${yearGroup} Semester ${semester} already exists`,
+        `Classroom for ${yearGroup} ${program} Semester ${semester} already exists`,
       );
     }
 
@@ -74,6 +76,7 @@ export const createClassroom = asyncHandler(
         yearGroup,
         graduationYear: graduationYear.toString(),
         semester: semester.toString(),
+        program,
         isActive: isActive ?? true,
       },
     });
@@ -84,21 +87,33 @@ export const createClassroom = asyncHandler(
 
 /**
  * Get all classrooms
- * GET /api/v1/classrooms
+ * GET /api/v1/classrooms?program=COMPUTER_SCIENCE
  */
 export const getClassrooms = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const { page, limit } = req.query as { page?: string; limit?: string };
+    const { page, limit, program } = req.query as {
+      page?: string;
+      limit?: string;
+      program?: string;
+    };
     const pagination = parsePaginationParams(page, limit);
+
+    const where: any = { isActive: true };
+    if (
+      program &&
+      ["COMPUTER_SCIENCE", "INFORMATION_TECHNOLOGY"].includes(program)
+    ) {
+      where.program = program;
+    }
 
     const [classrooms, total] = await Promise.all([
       prisma.classroom.findMany({
-        where: { isActive: true },
+        where,
         orderBy: [{ graduationYear: "desc" }, { yearGroup: "asc" }],
         skip: pagination.skip,
         take: pagination.limit,
       }),
-      prisma.classroom.count({ where: { isActive: true } }),
+      prisma.classroom.count({ where }),
     ]);
 
     const paginationMeta = calculatePagination(
@@ -520,6 +535,228 @@ export const getClassroomQuizzes = asyncHandler(
   },
 );
 
+// ==================== ADMIN ENDPOINTS ====================
+
+/**
+ * Update classroom (Admin only)
+ * PUT /api/v1/classrooms/:id
+ */
+export const updateClassroom = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+    const { yearGroup, graduationYear, semester, program, isActive } = req.body;
+
+    const classroom = await prisma.classroom.findUnique({ where: { id } });
+    if (!classroom) {
+      throw ApiError.notFound("Classroom not found");
+    }
+
+    const updateData: any = {};
+    if (yearGroup !== undefined) updateData.yearGroup = yearGroup;
+    if (graduationYear !== undefined)
+      updateData.graduationYear = graduationYear.toString();
+    if (semester !== undefined) updateData.semester = semester.toString();
+    if (program !== undefined) updateData.program = program;
+    if (isActive !== undefined) updateData.isActive = isActive;
+
+    const updatedClassroom = await prisma.classroom.update({
+      where: { id },
+      data: updateData,
+      include: {
+        courses: true,
+        timetableSlots: {
+          include: {
+            course: {
+              select: { id: true, courseCode: true, courseName: true },
+            },
+          },
+        },
+      },
+    });
+
+    sendSuccess(
+      res,
+      transformClassroom(updatedClassroom),
+      "Classroom updated successfully",
+    );
+  },
+);
+
+/**
+ * Delete classroom (Admin only)
+ * DELETE /api/v1/classrooms/:id
+ */
+export const deleteClassroom = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+
+    const classroom = await prisma.classroom.findUnique({ where: { id } });
+    if (!classroom) {
+      throw ApiError.notFound("Classroom not found");
+    }
+
+    // Cascade delete handles courses, timetable slots, announcements, quizzes
+    await prisma.classroom.delete({ where: { id } });
+
+    sendSuccess(res, null, "Classroom deleted successfully");
+  },
+);
+
+/**
+ * Add course to classroom (Admin only)
+ * POST /api/v1/classrooms/:id/courses
+ */
+export const addCourse = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const classroomId = getParamAsString(req.params.id);
+    const { courseCode, courseName, credits } = req.body;
+
+    const classroom = await prisma.classroom.findUnique({
+      where: { id: classroomId },
+    });
+    if (!classroom) {
+      throw ApiError.notFound("Classroom not found");
+    }
+
+    // Check for duplicate course code in this classroom
+    const existing = await prisma.course.findFirst({
+      where: { classroomId, courseCode },
+    });
+    if (existing) {
+      throw ApiError.conflict(
+        `Course ${courseCode} already exists in this classroom`,
+      );
+    }
+
+    const course = await prisma.course.create({
+      data: {
+        classroomId,
+        courseCode,
+        courseName,
+        credits,
+      },
+    });
+
+    sendCreated(
+      res,
+      {
+        id: course.id,
+        courseCode: course.courseCode,
+        courseName: course.courseName,
+        credits: course.credits,
+      },
+      "Course added successfully",
+    );
+  },
+);
+
+/**
+ * Add timetable slot to classroom (Admin only)
+ * POST /api/v1/classrooms/:id/timetable
+ */
+export const addTimetableSlot = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const classroomId = getParamAsString(req.params.id);
+    const { courseId, dayOfWeek, startTime, endTime, room } = req.body;
+
+    const classroom = await prisma.classroom.findUnique({
+      where: { id: classroomId },
+    });
+    if (!classroom) {
+      throw ApiError.notFound("Classroom not found");
+    }
+
+    // Verify the course belongs to this classroom
+    const course = await prisma.course.findFirst({
+      where: { id: courseId, classroomId },
+    });
+    if (!course) {
+      throw ApiError.notFound("Course not found in this classroom");
+    }
+
+    const slot = await prisma.timetableSlot.create({
+      data: {
+        classroomId,
+        courseId,
+        dayOfWeek,
+        startTime,
+        endTime,
+        room,
+      },
+      include: {
+        course: {
+          select: { id: true, courseCode: true, courseName: true },
+        },
+      },
+    });
+
+    sendCreated(
+      res,
+      {
+        id: slot.id,
+        dayOfWeek: slot.dayOfWeek,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        room: slot.room,
+        course: slot.course,
+      },
+      "Timetable slot added successfully",
+    );
+  },
+);
+
+/**
+ * Add quiz to classroom (Admin only)
+ * POST /api/v1/classrooms/:id/quizzes
+ */
+export const addQuiz = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const classroomId = getParamAsString(req.params.id);
+    const { courseId, title, quizDate, quizTime } = req.body;
+
+    const classroom = await prisma.classroom.findUnique({
+      where: { id: classroomId },
+    });
+    if (!classroom) {
+      throw ApiError.notFound("Classroom not found");
+    }
+
+    // Verify the course belongs to this classroom
+    const course = await prisma.course.findFirst({
+      where: { id: courseId, classroomId },
+    });
+    if (!course) {
+      throw ApiError.notFound("Course not found in this classroom");
+    }
+
+    const quiz = await prisma.quiz.create({
+      data: {
+        courseId,
+        title,
+        quizDate: new Date(quizDate),
+        quizTime,
+      },
+      include: {
+        course: {
+          select: { id: true, courseCode: true, courseName: true },
+        },
+      },
+    });
+
+    sendCreated(
+      res,
+      {
+        id: quiz.id,
+        title: quiz.title,
+        quizDate: quiz.quizDate,
+        quizTime: quiz.quizTime,
+        course: quiz.course,
+      },
+      "Quiz added successfully",
+    );
+  },
+);
+
 export default {
   createClassroom,
   getClassrooms,
@@ -530,4 +767,9 @@ export default {
   updateAnnouncement,
   deleteAnnouncement,
   getClassroomQuizzes,
+  updateClassroom,
+  deleteClassroom,
+  addCourse,
+  addTimetableSlot,
+  addQuiz,
 };
