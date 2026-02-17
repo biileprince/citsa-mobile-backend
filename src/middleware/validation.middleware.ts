@@ -327,6 +327,20 @@ export const announcementIdValidation = [
   param("announcementId").isUUID().withMessage("Invalid announcement ID"),
 ];
 
+export const announcementCommentValidation = [
+  body("content")
+    .notEmpty()
+    .withMessage("Comment content is required")
+    .isLength({ min: 1, max: 2000 })
+    .withMessage("Comment must be between 1 and 2000 characters"),
+];
+
+export const announcementCommentIdValidation = [
+  param("id").isUUID().withMessage("Invalid classroom ID"),
+  param("announcementId").isUUID().withMessage("Invalid announcement ID"),
+  param("commentId").isUUID().withMessage("Invalid comment ID"),
+];
+
 export const createClassroomValidation = [
   body("yearGroup")
     .notEmpty()
