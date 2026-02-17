@@ -1148,6 +1148,70 @@ export const getSavedPosts = asyncHandler(
   },
 );
 
+// ==================== ADMIN ENDPOINTS ====================
+
+/**
+ * Delete post (Admin only)
+ * DELETE /api/v1/feed/posts/:id
+ */
+export const deletePost = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+
+    const post = await prisma.post.findUnique({
+      where: { id },
+      select: { id: true, imageUrl: true },
+    });
+
+    if (!post) {
+      throw ApiError.notFound("Post not found");
+    }
+
+    // Delete post image from S3 if exists
+    if (post.imageUrl) {
+      const { deleteFileByUrl } = await import(
+        "../services/storage.service.js"
+      );
+      deleteFileByUrl(post.imageUrl).catch(() => {});
+    }
+
+    // Cascade delete handles comments, likes, saves, shares, event
+    await prisma.post.delete({ where: { id } });
+
+    sendSuccess(res, null, "Post deleted successfully");
+  },
+);
+
+/**
+ * Toggle post pin status (Admin only)
+ * PATCH /api/v1/feed/posts/:id/pin
+ */
+export const togglePin = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+
+    const post = await prisma.post.findUnique({
+      where: { id },
+      select: { id: true, isPinned: true },
+    });
+
+    if (!post) {
+      throw ApiError.notFound("Post not found");
+    }
+
+    const updatedPost = await prisma.post.update({
+      where: { id },
+      data: { isPinned: !post.isPinned },
+    });
+
+    sendSuccess(
+      res,
+      { id: updatedPost.id, isPinned: updatedPost.isPinned },
+      `Post ${updatedPost.isPinned ? "pinned" : "unpinned"} successfully`,
+    );
+  },
+);
+
 export default {
   getPosts,
   getPostById,
@@ -1163,4 +1227,6 @@ export default {
   unsavePost,
   sharePost,
   getSavedPosts,
+  deletePost,
+  togglePin,
 };
