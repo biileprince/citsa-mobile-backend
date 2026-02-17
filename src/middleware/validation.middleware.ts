@@ -343,6 +343,11 @@ export const createClassroomValidation = [
     .withMessage("Semester is required")
     .isInt({ min: 1, max: 2 })
     .withMessage("Semester must be 1 or 2"),
+  body("program")
+    .notEmpty()
+    .withMessage("Program is required")
+    .isIn(["COMPUTER_SCIENCE", "INFORMATION_TECHNOLOGY"])
+    .withMessage("Program must be COMPUTER_SCIENCE or INFORMATION_TECHNOLOGY"),
   body("isActive")
     .optional()
     .isBoolean()
@@ -401,6 +406,284 @@ export const notificationQueryValidation = [
 
 export const userIdValidation = [
   param("userId").isUUID().withMessage("Invalid user ID"),
+];
+
+// ==================== ADMIN VALIDATIONS ====================
+
+export const adminUserIdValidation = [
+  param("id").isUUID().withMessage("Invalid user ID"),
+];
+
+export const changeRoleValidation = [
+  param("id").isUUID().withMessage("Invalid user ID"),
+  body("role")
+    .notEmpty()
+    .withMessage("Role is required")
+    .isIn(["STUDENT", "CLASS_REP", "ADMIN"])
+    .withMessage("Role must be STUDENT, CLASS_REP, or ADMIN"),
+];
+
+export const createGroupValidation = [
+  body("name")
+    .notEmpty()
+    .withMessage("Group name is required")
+    .isLength({ min: 2, max: 255 })
+    .withMessage("Group name must be between 2 and 255 characters"),
+  body("description")
+    .optional()
+    .isLength({ max: 2000 })
+    .withMessage("Description must be less than 2000 characters"),
+  body("category")
+    .optional()
+    .isLength({ max: 100 })
+    .withMessage("Category must be less than 100 characters"),
+  body("coverColor")
+    .optional()
+    .isLength({ max: 50 })
+    .withMessage("Cover color must be less than 50 characters"),
+];
+
+export const updateGroupValidation = [
+  param("id")
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage("Group ID is required"),
+  body("name")
+    .optional()
+    .isLength({ min: 2, max: 255 })
+    .withMessage("Group name must be between 2 and 255 characters"),
+  body("description")
+    .optional()
+    .isLength({ max: 2000 })
+    .withMessage("Description must be less than 2000 characters"),
+  body("category")
+    .optional()
+    .isLength({ max: 100 })
+    .withMessage("Category must be less than 100 characters"),
+  body("coverColor")
+    .optional()
+    .isLength({ max: 50 })
+    .withMessage("Cover color must be less than 50 characters"),
+  body("isActive")
+    .optional()
+    .isBoolean()
+    .withMessage("isActive must be a boolean"),
+];
+
+export const updateClassroomValidation = [
+  param("id").isUUID().withMessage("Invalid classroom ID"),
+  body("yearGroup")
+    .optional()
+    .isLength({ min: 4, max: 4 })
+    .withMessage("Year group must be 4 characters"),
+  body("graduationYear")
+    .optional()
+    .isInt({ min: 2020, max: 2100 })
+    .withMessage("Graduation year must be between 2020 and 2100"),
+  body("semester")
+    .optional()
+    .isInt({ min: 1, max: 2 })
+    .withMessage("Semester must be 1 or 2"),
+  body("program")
+    .optional()
+    .isIn(["COMPUTER_SCIENCE", "INFORMATION_TECHNOLOGY"])
+    .withMessage("Program must be COMPUTER_SCIENCE or INFORMATION_TECHNOLOGY"),
+  body("isActive")
+    .optional()
+    .isBoolean()
+    .withMessage("isActive must be a boolean"),
+];
+
+export const addCourseValidation = [
+  param("id").isUUID().withMessage("Invalid classroom ID"),
+  body("courseCode")
+    .notEmpty()
+    .withMessage("Course code is required")
+    .isLength({ max: 20 })
+    .withMessage("Course code must be less than 20 characters"),
+  body("courseName")
+    .notEmpty()
+    .withMessage("Course name is required")
+    .isLength({ max: 255 })
+    .withMessage("Course name must be less than 255 characters"),
+  body("credits")
+    .notEmpty()
+    .withMessage("Credits is required")
+    .isInt({ min: 1, max: 10 })
+    .withMessage("Credits must be between 1 and 10"),
+];
+
+export const addTimetableSlotValidation = [
+  param("id").isUUID().withMessage("Invalid classroom ID"),
+  body("courseId")
+    .notEmpty()
+    .withMessage("Course ID is required")
+    .isUUID()
+    .withMessage("Invalid course ID"),
+  body("dayOfWeek")
+    .notEmpty()
+    .withMessage("Day of week is required")
+    .isIn([
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday",
+    ])
+    .withMessage("Invalid day of week"),
+  body("startTime")
+    .notEmpty()
+    .withMessage("Start time is required")
+    .matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    .withMessage("Start time must be in HH:MM format"),
+  body("endTime")
+    .notEmpty()
+    .withMessage("End time is required")
+    .matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    .withMessage("End time must be in HH:MM format"),
+  body("room")
+    .notEmpty()
+    .withMessage("Room is required")
+    .isLength({ max: 50 })
+    .withMessage("Room must be less than 50 characters"),
+];
+
+export const addQuizValidation = [
+  param("id").isUUID().withMessage("Invalid classroom ID"),
+  body("courseId")
+    .notEmpty()
+    .withMessage("Course ID is required")
+    .isUUID()
+    .withMessage("Invalid course ID"),
+  body("title")
+    .notEmpty()
+    .withMessage("Quiz title is required")
+    .isLength({ max: 255 })
+    .withMessage("Title must be less than 255 characters"),
+  body("quizDate")
+    .notEmpty()
+    .withMessage("Quiz date is required")
+    .isISO8601()
+    .withMessage("Invalid quiz date format"),
+  body("quizTime")
+    .notEmpty()
+    .withMessage("Quiz time is required")
+    .matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    .withMessage("Quiz time must be in HH:MM format"),
+];
+
+export const updateEventValidation = [
+  param("id").isUUID().withMessage("Invalid event ID"),
+  body("eventDate")
+    .optional()
+    .isISO8601()
+    .withMessage("Invalid event date"),
+  body("eventTime")
+    .optional()
+    .matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    .withMessage("Invalid event time format (HH:MM)"),
+  body("location")
+    .optional()
+    .isLength({ max: 255 })
+    .withMessage("Location must be less than 255 characters"),
+  body("capacityMax")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("Capacity must be at least 1"),
+  body("registrationDeadline")
+    .optional()
+    .isISO8601()
+    .withMessage("Invalid registration deadline"),
+  body("tags")
+    .optional()
+    .isArray()
+    .withMessage("Tags must be an array"),
+  body("isUrgent")
+    .optional()
+    .isBoolean()
+    .withMessage("isUrgent must be boolean"),
+];
+
+export const sendNotificationValidation = [
+  body("userId")
+    .notEmpty()
+    .withMessage("User ID is required")
+    .isUUID()
+    .withMessage("Invalid user ID"),
+  body("type")
+    .notEmpty()
+    .withMessage("Notification type is required")
+    .isIn([
+      "LIKE",
+      "COMMENT",
+      "EVENT_REMINDER",
+      "ANNOUNCEMENT",
+      "URGENT_ANNOUNCEMENT",
+      "EVENT_FULL",
+      "NEW_EVENT",
+      "MENTION",
+    ])
+    .withMessage("Invalid notification type"),
+  body("title")
+    .notEmpty()
+    .withMessage("Title is required")
+    .isLength({ max: 255 })
+    .withMessage("Title must be less than 255 characters"),
+  body("message")
+    .notEmpty()
+    .withMessage("Message is required")
+    .isLength({ max: 5000 })
+    .withMessage("Message must be less than 5000 characters"),
+  body("relatedEntityType")
+    .optional()
+    .isLength({ max: 50 })
+    .withMessage("Related entity type must be less than 50 characters"),
+  body("relatedEntityId")
+    .optional()
+    .isString()
+    .withMessage("Related entity ID must be a string"),
+];
+
+export const broadcastNotificationValidation = [
+  body("type")
+    .notEmpty()
+    .withMessage("Notification type is required")
+    .isIn([
+      "LIKE",
+      "COMMENT",
+      "EVENT_REMINDER",
+      "ANNOUNCEMENT",
+      "URGENT_ANNOUNCEMENT",
+      "EVENT_FULL",
+      "NEW_EVENT",
+      "MENTION",
+    ])
+    .withMessage("Invalid notification type"),
+  body("title")
+    .notEmpty()
+    .withMessage("Title is required")
+    .isLength({ max: 255 })
+    .withMessage("Title must be less than 255 characters"),
+  body("message")
+    .notEmpty()
+    .withMessage("Message is required")
+    .isLength({ max: 5000 })
+    .withMessage("Message must be less than 5000 characters"),
+  body("role")
+    .optional()
+    .isIn(["STUDENT", "CLASS_REP", "ADMIN"])
+    .withMessage("Role must be STUDENT, CLASS_REP, or ADMIN"),
+  body("relatedEntityType")
+    .optional()
+    .isLength({ max: 50 })
+    .withMessage("Related entity type must be less than 50 characters"),
+  body("relatedEntityId")
+    .optional()
+    .isString()
+    .withMessage("Related entity ID must be a string"),
 ];
 
 // Export all

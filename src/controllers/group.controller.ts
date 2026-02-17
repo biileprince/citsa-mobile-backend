@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import prisma from "../config/database.js";
 import {
   sendSuccess,
+  sendCreated,
   calculatePagination,
   parsePaginationParams,
   getParamAsString,
@@ -351,6 +352,129 @@ export const getGroupCategories = asyncHandler(
   },
 );
 
+// ==================== ADMIN ENDPOINTS ====================
+
+/**
+ * Create group (Admin only)
+ * POST /api/v1/groups
+ */
+export const createGroup = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const userId = req.user!.userId;
+    const { name, description, category, coverColor } = req.body;
+
+    // Check for duplicate name
+    const existing = await prisma.group.findFirst({
+      where: { name },
+    });
+    if (existing) {
+      throw ApiError.conflict(`Group "${name}" already exists`);
+    }
+
+    // Create group and add creator as admin member in a transaction
+    const [group] = await prisma.$transaction([
+      prisma.group.create({
+        data: {
+          name,
+          description,
+          category,
+          coverColor,
+          membersCount: 1,
+        },
+      }),
+    ]);
+
+    // Add the creator as group admin
+    await prisma.groupMembership.create({
+      data: {
+        groupId: group.id,
+        userId,
+        role: "ADMIN",
+      },
+    });
+
+    const createdGroup = await prisma.group.findUnique({
+      where: { id: group.id },
+      include: {
+        memberships: {
+          where: { userId },
+          select: { userId: true, role: true },
+        },
+      },
+    });
+
+    sendCreated(
+      res,
+      transformGroup(createdGroup, userId),
+      "Group created successfully",
+    );
+  },
+);
+
+/**
+ * Update group (Admin only)
+ * PUT /api/v1/groups/:id
+ */
+export const updateGroup = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+    const { name, description, category, coverColor, isActive } = req.body;
+
+    const group = await prisma.group.findUnique({ where: { id } });
+    if (!group) {
+      throw ApiError.notFound("Group not found");
+    }
+
+    // If name changed, check for duplicates
+    if (name && name !== group.name) {
+      const existing = await prisma.group.findFirst({
+        where: { name, id: { not: id } },
+      });
+      if (existing) {
+        throw ApiError.conflict(`Group "${name}" already exists`);
+      }
+    }
+
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+    if (category !== undefined) updateData.category = category;
+    if (coverColor !== undefined) updateData.coverColor = coverColor;
+    if (isActive !== undefined) updateData.isActive = isActive;
+
+    const updatedGroup = await prisma.group.update({
+      where: { id },
+      data: updateData,
+    });
+
+    sendSuccess(
+      res,
+      transformGroup(updatedGroup),
+      "Group updated successfully",
+    );
+  },
+);
+
+/**
+ * Delete group (Admin only)
+ * DELETE /api/v1/groups/:id
+ */
+export const deleteGroup = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+
+    const group = await prisma.group.findUnique({ where: { id } });
+    if (!group) {
+      throw ApiError.notFound("Group not found");
+    }
+
+    // Cascade delete handles memberships
+    await prisma.group.delete({ where: { id } });
+
+    sendSuccess(res, null, "Group deleted successfully");
+  },
+);
+
 export default {
   getGroups,
   getGroupById,
@@ -359,4 +483,7 @@ export default {
   leaveGroup,
   getMyGroups,
   getGroupCategories,
+  createGroup,
+  updateGroup,
+  deleteGroup,
 };

@@ -53,6 +53,8 @@ tags:
     description: Classroom, timetable, quizzes, and announcements
   - name: Notifications
     description: User notification management
+  - name: Admin
+    description: Admin-only endpoints for user, content, and system management
 
 components:
   securitySchemes:
@@ -893,6 +895,10 @@ components:
         semester:
           type: string
           example: "1"
+        program:
+          type: string
+          enum: [COMPUTER_SCIENCE, INFORMATION_TECHNOLOGY]
+          example: "COMPUTER_SCIENCE"
         isActive:
           type: boolean
         createdAt:
@@ -1019,7 +1025,7 @@ components:
 
     CreateClassroomRequest:
       type: object
-      required: [yearGroup, graduationYear, semester]
+      required: [yearGroup, graduationYear, semester, program]
       properties:
         yearGroup:
           type: string
@@ -1036,6 +1042,10 @@ components:
           minimum: 1
           maximum: 2
           example: 1
+        program:
+          type: string
+          enum: [COMPUTER_SCIENCE, INFORMATION_TECHNOLOGY]
+          example: "COMPUTER_SCIENCE"
         isActive:
           type: boolean
           default: true
@@ -1153,6 +1163,275 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    # ─── Admin ──────────────────────────────────────
+    AdminStats:
+      type: object
+      properties:
+        totalUsers:
+          type: integer
+          example: 150
+        activeUsers:
+          type: integer
+          example: 142
+        inactiveUsers:
+          type: integer
+          example: 8
+        totalPosts:
+          type: integer
+          example: 75
+        totalEvents:
+          type: integer
+          example: 12
+        totalGroups:
+          type: integer
+          example: 8
+        totalClassrooms:
+          type: integer
+          example: 4
+        newUsersThisMonth:
+          type: integer
+          example: 15
+        usersByRole:
+          type: object
+          properties:
+            STUDENT:
+              type: integer
+              example: 140
+            CLASS_REP:
+              type: integer
+              example: 8
+            ADMIN:
+              type: integer
+              example: 2
+
+    ChangeRoleRequest:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: string
+          enum: [STUDENT, CLASS_REP, ADMIN]
+          example: "CLASS_REP"
+
+    CreateGroupRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 255
+          example: "Flutter Developers Club"
+        description:
+          type: string
+          maxLength: 2000
+          example: "A community for Flutter enthusiasts"
+        category:
+          type: string
+          maxLength: 100
+          example: "Technology"
+        coverColor:
+          type: string
+          maxLength: 50
+          example: "#4A90D9"
+
+    UpdateGroupRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+        category:
+          type: string
+          maxLength: 100
+        coverColor:
+          type: string
+          maxLength: 50
+        isActive:
+          type: boolean
+
+    UpdateClassroomRequest:
+      type: object
+      properties:
+        yearGroup:
+          type: string
+          minLength: 4
+          maxLength: 4
+        graduationYear:
+          type: integer
+          minimum: 2020
+          maximum: 2100
+        semester:
+          type: integer
+          minimum: 1
+          maximum: 2
+        program:
+          type: string
+          enum: [COMPUTER_SCIENCE, INFORMATION_TECHNOLOGY]
+        isActive:
+          type: boolean
+
+    AddCourseRequest:
+      type: object
+      required: [courseCode, courseName, credits]
+      properties:
+        courseCode:
+          type: string
+          maxLength: 20
+          example: "CS301"
+        courseName:
+          type: string
+          maxLength: 255
+          example: "Data Structures and Algorithms"
+        credits:
+          type: integer
+          minimum: 1
+          maximum: 10
+          example: 3
+
+    AddTimetableSlotRequest:
+      type: object
+      required: [courseId, dayOfWeek, startTime, endTime, room]
+      properties:
+        courseId:
+          type: string
+          format: uuid
+          description: Must be a course belonging to this classroom
+        dayOfWeek:
+          type: string
+          enum: [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]
+          example: "Monday"
+        startTime:
+          type: string
+          pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
+          example: "08:00"
+        endTime:
+          type: string
+          pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
+          example: "10:00"
+        room:
+          type: string
+          maxLength: 50
+          example: "LH 201"
+
+    AddQuizRequest:
+      type: object
+      required: [courseId, title, quizDate, quizTime]
+      properties:
+        courseId:
+          type: string
+          format: uuid
+          description: Must be a course belonging to this classroom
+        title:
+          type: string
+          maxLength: 255
+          example: "Data Structures Quiz 1"
+        quizDate:
+          type: string
+          format: date
+          example: "2026-03-15"
+        quizTime:
+          type: string
+          pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
+          example: "10:00"
+
+    UpdateEventRequest:
+      type: object
+      properties:
+        eventDate:
+          type: string
+          format: date-time
+        eventTime:
+          type: string
+          pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
+        location:
+          type: string
+          maxLength: 255
+        capacityMax:
+          type: integer
+          minimum: 1
+        registrationDeadline:
+          type: string
+          format: date-time
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        isUrgent:
+          type: boolean
+
+    SendNotificationRequest:
+      type: object
+      required: [userId, type, title, message]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [LIKE, COMMENT, EVENT_REMINDER, ANNOUNCEMENT, URGENT_ANNOUNCEMENT, EVENT_FULL, NEW_EVENT, MENTION]
+          example: "ANNOUNCEMENT"
+        title:
+          type: string
+          maxLength: 255
+          example: "Important Update"
+        message:
+          type: string
+          example: "Your account has been updated by an administrator."
+        relatedEntityType:
+          type: string
+          example: "post"
+        relatedEntityId:
+          type: string
+          format: uuid
+
+    BroadcastNotificationRequest:
+      type: object
+      required: [type, title, message]
+      properties:
+        type:
+          type: string
+          enum: [LIKE, COMMENT, EVENT_REMINDER, ANNOUNCEMENT, URGENT_ANNOUNCEMENT, EVENT_FULL, NEW_EVENT, MENTION]
+          example: "ANNOUNCEMENT"
+        title:
+          type: string
+          maxLength: 255
+          example: "System Maintenance"
+        message:
+          type: string
+          example: "The system will undergo maintenance tonight from 10 PM to 2 AM."
+        relatedEntityType:
+          type: string
+          example: "system"
+        relatedEntityId:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [STUDENT, CLASS_REP, ADMIN]
+          description: Optional filter to send only to users with this role
+
+    Course:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        courseCode:
+          type: string
+          example: "CS301"
+        courseName:
+          type: string
+          example: "Data Structures and Algorithms"
+        credits:
+          type: integer
+          example: 3
 
   responses:
     Unauthorized:
@@ -1715,6 +1994,218 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  # ─── Admin: Users ──────────────────────────────────────
+  /users/admin/all:
+    get:
+      tags: [Admin]
+      summary: List all users (Admin only)
+      description: Returns a paginated list of all users with optional filtering by role, active status, and search.
+      operationId: adminGetAllUsers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [STUDENT, CLASS_REP, ADMIN]
+          description: Filter by user role
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search in fullName, studentId, email, program
+        - name: isActive
+          in: query
+          schema:
+            type: string
+            enum: ["true", "false"]
+          description: Filter by active status
+      responses:
+        "200":
+          description: Paginated list of users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/User"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /users/admin/stats:
+    get:
+      tags: [Admin]
+      summary: Get admin dashboard stats
+      description: Returns aggregate counts for users, posts, events, groups, classrooms, and role breakdown.
+      operationId: adminGetStats
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/AdminStats"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /users/admin/{id}/role:
+    patch:
+      tags: [Admin]
+      summary: Change user role (Admin only)
+      description: Change a user's role. Cannot change own role or demote the last admin.
+      operationId: adminChangeUserRole
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeRoleRequest"
+      responses:
+        "200":
+          description: Role changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "User role changed to CLASS_REP"
+                  data:
+                    $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /users/admin/{id}/toggle-active:
+    patch:
+      tags: [Admin]
+      summary: Toggle user active status (Admin only)
+      description: Activate or deactivate a user. Cannot deactivate self or the last active admin.
+      operationId: adminToggleUserActive
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User status toggled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "User deactivated successfully"
+                  data:
+                    $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /users/admin/{id}:
+    delete:
+      tags: [Admin]
+      summary: Delete user (Admin only)
+      description: Permanently delete a user and all associated data. Cannot delete self or the last admin.
+      operationId: adminDeleteUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "User deleted successfully"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   # ─── Feed / Posts ──────────────────────────────────────
   /feed/posts:
     get:
@@ -1954,6 +2445,88 @@ paths:
                     example: "Post updated successfully"
                   data:
                     $ref: "#/components/schemas/Post"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Admin]
+      summary: Delete post (Admin only)
+      description: Permanently delete a post and all associated data (comments, likes, saves, shares, event). Removes image from S3 if present.
+      operationId: adminDeletePost
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Post deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Post deleted successfully"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /feed/posts/{id}/pin:
+    patch:
+      tags: [Admin]
+      summary: Toggle post pin (Admin only)
+      description: Toggle the pinned status of a post. Pinned posts appear at the top of the feed.
+      operationId: adminTogglePostPin
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Pin status toggled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Post pinned successfully"
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      isPinned:
+                        type: boolean
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -2599,6 +3172,86 @@ paths:
           $ref: "#/components/responses/ValidationError"
         "404":
           $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Admin]
+      summary: Update event (Admin only)
+      description: Update event details such as date, time, location, capacity, and more.
+      operationId: adminUpdateEvent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEventRequest"
+      responses:
+        "200":
+          description: Event updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Event updated successfully"
+                  data:
+                    $ref: "#/components/schemas/Event"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Admin]
+      summary: Delete event (Admin only)
+      description: Delete an event and its associated post (cascades to registrations, comments, likes, etc.).
+      operationId: adminDeleteEvent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Event deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Event and associated post deleted successfully"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /events/{id}/register:
     post:
@@ -2760,6 +3413,43 @@ paths:
                       $ref: "#/components/schemas/Group"
                   pagination:
                     $ref: "#/components/schemas/Pagination"
+    post:
+      tags: [Admin]
+      summary: Create group (Admin only)
+      description: Create a new group. The admin is automatically added as the group admin member.
+      operationId: adminCreateGroup
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGroupRequest"
+      responses:
+        "201":
+          description: Group created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Group created successfully"
+                  data:
+                    $ref: "#/components/schemas/Group"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
   /groups/categories:
     get:
@@ -2862,6 +3552,84 @@ paths:
                     example: true
                   data:
                     $ref: "#/components/schemas/Group"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Admin]
+      summary: Update group (Admin only)
+      description: Update group details. Checks for duplicate name on rename.
+      operationId: adminUpdateGroup
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateGroupRequest"
+      responses:
+        "200":
+          description: Group updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Group updated successfully"
+                  data:
+                    $ref: "#/components/schemas/Group"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      tags: [Admin]
+      summary: Delete group (Admin only)
+      description: Permanently delete a group and all associated memberships.
+      operationId: adminDeleteGroup
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Group deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Group deleted successfully"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -3118,6 +3886,134 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Admin]
+      summary: Update classroom (Admin only)
+      description: Update classroom details such as year group, graduation year, semester, program, and active status.
+      operationId: adminUpdateClassroom
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateClassroomRequest"
+      responses:
+        "200":
+          description: Classroom updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Classroom updated successfully"
+                  data:
+                    $ref: "#/components/schemas/ClassroomDetail"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Admin]
+      summary: Delete classroom (Admin only)
+      description: Permanently delete a classroom and all associated courses, timetable slots, announcements, and quizzes.
+      operationId: adminDeleteClassroom
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Classroom deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Classroom deleted successfully"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /classrooms/{id}/courses:
+    post:
+      tags: [Admin]
+      summary: Add course to classroom (Admin only)
+      description: Add a new course to a classroom. Duplicate course codes within the same classroom are not allowed.
+      operationId: adminAddCourse
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddCourseRequest"
+      responses:
+        "201":
+          description: Course added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Course added successfully"
+                  data:
+                    $ref: "#/components/schemas/Course"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
   /classrooms/{id}/timetable:
     get:
@@ -3149,6 +4045,71 @@ paths:
                     $ref: "#/components/schemas/TimetableByDay"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [Admin]
+      summary: Add timetable slot (Admin only)
+      description: Add a timetable slot for a course in this classroom. The course must belong to this classroom.
+      operationId: adminAddTimetableSlot
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddTimetableSlotRequest"
+      responses:
+        "201":
+          description: Timetable slot added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Timetable slot added successfully"
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      dayOfWeek:
+                        type: string
+                      startTime:
+                        type: string
+                      endTime:
+                        type: string
+                      room:
+                        type: string
+                      course:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          courseCode:
+                            type: string
+                          courseName:
+                            type: string
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -3199,6 +4160,70 @@ paths:
                     $ref: "#/components/schemas/Pagination"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [Admin]
+      summary: Add quiz (Admin only)
+      description: Add a quiz for a course in this classroom. The course must belong to this classroom.
+      operationId: adminAddQuiz
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddQuizRequest"
+      responses:
+        "201":
+          description: Quiz added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Quiz added successfully"
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      title:
+                        type: string
+                      quizDate:
+                        type: string
+                        format: date-time
+                      quizTime:
+                        type: string
+                      course:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          courseCode:
+                            type: string
+                          courseName:
+                            type: string
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -3390,6 +4415,106 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  # ─── Admin: Notifications ──────────────────────────────
+  /notifications/send:
+    post:
+      tags: [Admin]
+      summary: Send notification to user (Admin only)
+      description: Send a notification to a specific user. The target user must exist.
+      operationId: adminSendNotification
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendNotificationRequest"
+      responses:
+        "201":
+          description: Notification sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Notification sent successfully"
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      userId:
+                        type: string
+                        format: uuid
+                      type:
+                        type: string
+                      title:
+                        type: string
+                      message:
+                        type: string
+                      createdAt:
+                        type: string
+                        format: date-time
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /notifications/broadcast:
+    post:
+      tags: [Admin]
+      summary: Broadcast notification (Admin only)
+      description: Send a notification to all active users, optionally filtered by role.
+      operationId: adminBroadcastNotification
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BroadcastNotificationRequest"
+      responses:
+        "201":
+          description: Notification broadcast
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Notification broadcast to 42 users"
+                  data:
+                    type: object
+                    properties:
+                      sentTo:
+                        type: integer
+                        example: 42
+                      filter:
+                        type: string
+                        example: "ALL"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   # ─── Notifications ──────────────────────────────────────
   /notifications:

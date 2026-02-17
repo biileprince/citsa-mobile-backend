@@ -1,10 +1,16 @@
 import { Router } from "express";
 import groupController from "../controllers/group.controller.js";
-import { authenticate, optionalAuth } from "../middleware/auth.middleware.js";
+import {
+  authenticate,
+  optionalAuth,
+  requireAdmin,
+} from "../middleware/auth.middleware.js";
 import {
   validate,
   groupIdValidation,
   groupQueryValidation,
+  createGroupValidation,
+  updateGroupValidation,
 } from "../middleware/validation.middleware.js";
 
 const router = Router();
@@ -80,6 +86,47 @@ router.delete(
   authenticate,
   validate(groupIdValidation),
   groupController.leaveGroup,
+);
+
+// ==================== ADMIN ROUTES ====================
+
+/**
+ * @route   POST /api/v1/groups
+ * @desc    Create a new group (Admin only)
+ * @access  Private (Admin)
+ */
+router.post(
+  "/",
+  authenticate,
+  requireAdmin,
+  validate(createGroupValidation),
+  groupController.createGroup,
+);
+
+/**
+ * @route   PUT /api/v1/groups/:id
+ * @desc    Update group (Admin only)
+ * @access  Private (Admin)
+ */
+router.put(
+  "/:id",
+  authenticate,
+  requireAdmin,
+  validate(updateGroupValidation),
+  groupController.updateGroup,
+);
+
+/**
+ * @route   DELETE /api/v1/groups/:id
+ * @desc    Delete group (Admin only)
+ * @access  Private (Admin)
+ */
+router.delete(
+  "/:id",
+  authenticate,
+  requireAdmin,
+  validate(groupIdValidation),
+  groupController.deleteGroup,
 );
 
 export default router;

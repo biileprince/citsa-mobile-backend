@@ -400,10 +400,105 @@ export const getMyRegistrations = asyncHandler(
   },
 );
 
+// ==================== ADMIN ENDPOINTS ====================
+
+/**
+ * Update event (Admin only)
+ * PUT /api/v1/events/:id
+ */
+export const updateEvent = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+    const userId = req.user?.userId;
+    const {
+      eventDate,
+      eventTime,
+      location,
+      capacityMax,
+      registrationDeadline,
+      tags,
+      isUrgent,
+    } = req.body;
+
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event) {
+      throw ApiError.notFound("Event not found");
+    }
+
+    const updateData: any = {};
+    if (eventDate !== undefined) updateData.eventDate = new Date(eventDate);
+    if (eventTime !== undefined) updateData.eventTime = eventTime;
+    if (location !== undefined) updateData.location = location;
+    if (capacityMax !== undefined) updateData.capacityMax = capacityMax;
+    if (registrationDeadline !== undefined)
+      updateData.registrationDeadline = registrationDeadline
+        ? new Date(registrationDeadline)
+        : null;
+    if (tags !== undefined) updateData.tags = JSON.stringify(tags);
+    if (isUrgent !== undefined) updateData.isUrgent = isUrgent;
+
+    const updatedEvent = await prisma.event.update({
+      where: { id },
+      data: updateData,
+      include: {
+        post: {
+          include: {
+            author: {
+              select: {
+                id: true,
+                fullName: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+        registrations: userId
+          ? {
+              where: { userId, status: "REGISTERED" },
+              select: { userId: true, status: true },
+            }
+          : false,
+      },
+    });
+
+    sendSuccess(
+      res,
+      transformEvent(updatedEvent, userId),
+      "Event updated successfully",
+    );
+  },
+);
+
+/**
+ * Delete event (Admin only)
+ * DELETE /api/v1/events/:id
+ */
+export const deleteEvent = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+
+    const event = await prisma.event.findUnique({
+      where: { id },
+      select: { id: true, postId: true },
+    });
+
+    if (!event) {
+      throw ApiError.notFound("Event not found");
+    }
+
+    // Delete the parent post (which cascades to event and registrations)
+    await prisma.post.delete({ where: { id: event.postId } });
+
+    sendSuccess(res, null, "Event and associated post deleted successfully");
+  },
+);
+
 export default {
   getEvents,
   getEventById,
   registerForEvent,
   cancelRegistration,
   getMyRegistrations,
+  updateEvent,
+  deleteEvent,
 };
