@@ -276,9 +276,7 @@ export const getClassroomAnnouncements = asyncHandler(
               avatarUrl: true,
             },
           },
-          likes: userId
-            ? { where: { userId }, select: { id: true } }
-            : false,
+          likes: userId ? { where: { userId }, select: { id: true } } : false,
         },
         orderBy: [
           { isPinned: "desc" },
@@ -746,9 +744,7 @@ export const deleteAnnouncementComment = asyncHandler(
     }
 
     if (comment.announcementId !== announcementId) {
-      throw ApiError.badRequest(
-        "Comment does not belong to this announcement",
-      );
+      throw ApiError.badRequest("Comment does not belong to this announcement");
     }
 
     // Check if user is the author or admin
@@ -822,7 +818,10 @@ export const viewAnnouncement = asyncHandler(
 
     sendSuccess(
       res,
-      { viewed: true, viewsCount: announcement.viewsCount + (existingView ? 0 : 1) },
+      {
+        viewed: true,
+        viewsCount: announcement.viewsCount + (existingView ? 0 : 1),
+      },
       "View recorded",
     );
   },

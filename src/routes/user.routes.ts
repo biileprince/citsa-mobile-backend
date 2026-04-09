@@ -115,7 +115,12 @@ router.get("/search", authenticate, userController.searchUsers);
  * @desc    Get all users (Admin only)
  * @access  Private (Admin)
  */
-router.get("/admin/all", authenticate, requireAdmin, userController.getAllUsers);
+router.get(
+  "/admin/all",
+  authenticate,
+  requireAdmin,
+  userController.getAllUsers,
+);
 
 /**
  * @route   GET /api/v1/users/admin/stats

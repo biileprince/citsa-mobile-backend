@@ -1169,9 +1169,8 @@ export const deletePost = asyncHandler(
 
     // Delete post image from S3 if exists
     if (post.imageUrl) {
-      const { deleteFileByUrl } = await import(
-        "../services/storage.service.js"
-      );
+      const { deleteFileByUrl } =
+        await import("../services/storage.service.js");
       deleteFileByUrl(post.imageUrl).catch(() => {});
     }
 
