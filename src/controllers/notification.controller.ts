@@ -192,14 +192,8 @@ export const clearReadNotifications = asyncHandler(
  */
 export const sendNotification = asyncHandler(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const {
-      userId,
-      type,
-      title,
-      message,
-      relatedEntityType,
-      relatedEntityId,
-    } = req.body;
+    const { userId, type, title, message, relatedEntityType, relatedEntityId } =
+      req.body;
 
     // Verify user exists
     const user = await prisma.user.findUnique({ where: { id: userId } });
