@@ -879,6 +879,49 @@ components:
           type: integer
           example: 5
 
+    GroupMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        content:
+          type: string
+        reactionsCount:
+          type: integer
+          example: 3
+        isReacted:
+          type: boolean
+          example: false
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        author:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            fullName:
+              type: string
+              nullable: true
+            avatarUrl:
+              type: string
+              nullable: true
+
+    CreateGroupMessageRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 5000
+          example: "Welcome to the group. Please check the pinned resources."
+
     # ─── Classroom ──────────────────────────────────────
     Classroom:
       type: object
@@ -1412,7 +1455,17 @@ components:
           format: uuid
         type:
           type: string
-          enum: [LIKE, COMMENT, EVENT_REMINDER, ANNOUNCEMENT, URGENT_ANNOUNCEMENT, EVENT_FULL, NEW_EVENT, MENTION]
+          enum:
+            [
+              LIKE,
+              COMMENT,
+              EVENT_REMINDER,
+              ANNOUNCEMENT,
+              URGENT_ANNOUNCEMENT,
+              EVENT_FULL,
+              NEW_EVENT,
+              MENTION,
+            ]
           example: "ANNOUNCEMENT"
         title:
           type: string
@@ -1434,7 +1487,17 @@ components:
       properties:
         type:
           type: string
-          enum: [LIKE, COMMENT, EVENT_REMINDER, ANNOUNCEMENT, URGENT_ANNOUNCEMENT, EVENT_FULL, NEW_EVENT, MENTION]
+          enum:
+            [
+              LIKE,
+              COMMENT,
+              EVENT_REMINDER,
+              ANNOUNCEMENT,
+              URGENT_ANNOUNCEMENT,
+              EVENT_FULL,
+              NEW_EVENT,
+              MENTION,
+            ]
           example: "ANNOUNCEMENT"
         title:
           type: string
@@ -3715,6 +3778,194 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /groups/{id}/messages:
+    get:
+      tags: [Groups]
+      summary: Get group messages
+      description: Returns paginated group messages. Only group members can access messages.
+      operationId: getGroupMessages
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Group messages list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/GroupMessage"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [Groups]
+      summary: Post group message (group admin only)
+      description: Creates a group message. Only users with group role ADMIN can post.
+      operationId: createGroupMessage
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGroupMessageRequest"
+      responses:
+        "201":
+          description: Group message created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Message posted successfully"
+                  data:
+                    $ref: "#/components/schemas/GroupMessage"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /groups/{id}/messages/{messageId}/reactions:
+    post:
+      tags: [Groups]
+      summary: React to group message
+      description: Adds a like reaction to a group message. Only group members can react.
+      operationId: reactToGroupMessage
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Reaction added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Reaction added successfully"
+                  data:
+                    type: object
+                    properties:
+                      reacted:
+                        type: boolean
+                        example: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      tags: [Groups]
+      summary: Remove reaction from group message
+      description: Removes the authenticated user's reaction from a group message.
+      operationId: unreactToGroupMessage
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Reaction removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Reaction removed successfully"
+                  data:
+                    type: object
+                    properties:
+                      reacted:
+                        type: boolean
+                        example: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /groups/{id}/join:
     post:
       tags: [Groups]
@@ -4006,10 +4257,10 @@ paths:
 
   /classrooms/{id}/courses:
     post:
-      tags: [Admin]
-      summary: Add course to classroom (Admin only)
+      tags: [Classrooms]
+      summary: Add course to classroom (Class Rep only)
       description: Add a new course to a classroom. Duplicate course codes within the same classroom are not allowed.
-      operationId: adminAddCourse
+      operationId: addCourse
       security:
         - BearerAuth: []
       parameters:
@@ -4085,10 +4336,10 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
     post:
-      tags: [Admin]
-      summary: Add timetable slot (Admin only)
+      tags: [Classrooms]
+      summary: Add timetable slot (Class Rep only)
       description: Add a timetable slot for a course in this classroom. The course must belong to this classroom.
-      operationId: adminAddTimetableSlot
+      operationId: addTimetableSlot
       security:
         - BearerAuth: []
       parameters:
@@ -4200,10 +4451,10 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
     post:
-      tags: [Admin]
-      summary: Add quiz (Admin only)
+      tags: [Classrooms]
+      summary: Add quiz (Class Rep only)
       description: Add a quiz for a course in this classroom. The course must belong to this classroom.
-      operationId: adminAddQuiz
+      operationId: addQuiz
       security:
         - BearerAuth: []
       parameters:

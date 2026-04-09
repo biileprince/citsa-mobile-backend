@@ -8,6 +8,8 @@ import {
 import {
   validate,
   groupIdValidation,
+  groupMessageIdValidation,
+  groupMessageValidation,
   groupQueryValidation,
   createGroupValidation,
   updateGroupValidation,
@@ -86,6 +88,54 @@ router.delete(
   authenticate,
   validate(groupIdValidation),
   groupController.leaveGroup,
+);
+
+/**
+ * @route   GET /api/v1/groups/:id/messages
+ * @desc    Get group messages (members only)
+ * @access  Private
+ */
+router.get(
+  "/:id/messages",
+  authenticate,
+  validate(groupIdValidation),
+  groupController.getGroupMessages,
+);
+
+/**
+ * @route   POST /api/v1/groups/:id/messages
+ * @desc    Post group message (group admin only)
+ * @access  Private
+ */
+router.post(
+  "/:id/messages",
+  authenticate,
+  validate(groupMessageValidation),
+  groupController.createGroupMessage,
+);
+
+/**
+ * @route   POST /api/v1/groups/:id/messages/:messageId/reactions
+ * @desc    React to a group message (members only)
+ * @access  Private
+ */
+router.post(
+  "/:id/messages/:messageId/reactions",
+  authenticate,
+  validate(groupMessageIdValidation),
+  groupController.reactToGroupMessage,
+);
+
+/**
+ * @route   DELETE /api/v1/groups/:id/messages/:messageId/reactions
+ * @desc    Remove reaction from a group message (members only)
+ * @access  Private
+ */
+router.delete(
+  "/:id/messages/:messageId/reactions",
+  authenticate,
+  validate(groupMessageIdValidation),
+  groupController.unreactToGroupMessage,
 );
 
 // ==================== ADMIN ROUTES ====================

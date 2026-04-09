@@ -232,39 +232,39 @@ router.delete(
 
 /**
  * @route   POST /api/v1/classrooms/:id/courses
- * @desc    Add course to classroom (Admin only)
- * @access  Private (Admin)
+ * @desc    Add course to classroom (Class Rep only)
+ * @access  Private (Class Rep)
  */
 router.post(
   "/:id/courses",
   authenticate,
-  requireAdmin,
+  requireClassRep,
   validate(addCourseValidation),
   classroomController.addCourse,
 );
 
 /**
  * @route   POST /api/v1/classrooms/:id/timetable
- * @desc    Add timetable slot (Admin only)
- * @access  Private (Admin)
+ * @desc    Add timetable slot (Class Rep only)
+ * @access  Private (Class Rep)
  */
 router.post(
   "/:id/timetable",
   authenticate,
-  requireAdmin,
+  requireClassRep,
   validate(addTimetableSlotValidation),
   classroomController.addTimetableSlot,
 );
 
 /**
  * @route   POST /api/v1/classrooms/:id/quizzes
- * @desc    Add quiz to classroom (Admin only)
- * @access  Private (Admin)
+ * @desc    Add quiz to classroom (Class Rep only)
+ * @access  Private (Class Rep)
  */
 router.post(
   "/:id/quizzes",
   authenticate,
-  requireAdmin,
+  requireClassRep,
   validate(addQuizValidation),
   classroomController.addQuiz,
 );
