@@ -301,6 +301,30 @@ export const groupIdValidation = [
     .withMessage("Invalid group ID format"),
 ];
 
+export const groupMessageValidation = [
+  param("id")
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage("Group ID is required"),
+  body("content")
+    .notEmpty()
+    .withMessage("Message content is required")
+    .isLength({ min: 1, max: 5000 })
+    .withMessage("Message content must be between 1 and 5000 characters"),
+];
+
+export const groupMessageIdValidation = [
+  param("id")
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage("Group ID is required"),
+  param("messageId")
+    .isUUID()
+    .withMessage("Invalid message ID"),
+];
+
 export const groupQueryValidation = [
   query("category")
     .optional()
@@ -458,11 +482,7 @@ export const createGroupValidation = [
 ];
 
 export const updateGroupValidation = [
-  param("id")
-    .isString()
-    .trim()
-    .notEmpty()
-    .withMessage("Group ID is required"),
+  param("id").isString().trim().notEmpty().withMessage("Group ID is required"),
   body("name")
     .optional()
     .isLength({ min: 2, max: 255 })
@@ -591,10 +611,7 @@ export const addQuizValidation = [
 
 export const updateEventValidation = [
   param("id").isUUID().withMessage("Invalid event ID"),
-  body("eventDate")
-    .optional()
-    .isISO8601()
-    .withMessage("Invalid event date"),
+  body("eventDate").optional().isISO8601().withMessage("Invalid event date"),
   body("eventTime")
     .optional()
     .matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
@@ -611,10 +628,7 @@ export const updateEventValidation = [
     .optional()
     .isISO8601()
     .withMessage("Invalid registration deadline"),
-  body("tags")
-    .optional()
-    .isArray()
-    .withMessage("Tags must be an array"),
+  body("tags").optional().isArray().withMessage("Tags must be an array"),
   body("isUrgent")
     .optional()
     .isBoolean()

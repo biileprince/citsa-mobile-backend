@@ -103,6 +103,8 @@ model User {
   announcementLikes        AnnouncementLike[]
   announcementComments     AnnouncementComment[]
   announcementViews        AnnouncementView[]
+  groupMessages            GroupMessage[]
+  groupMessageReactions    GroupMessageReaction[]
 
   @@index([studentId])
   @@index([email])
@@ -301,6 +303,7 @@ model Group {
 
   // Relations
   memberships GroupMembership[]
+  messages    GroupMessage[]
 
   @@index([category])
   @@index([name])
@@ -322,6 +325,42 @@ model GroupMembership {
   @@index([groupId])
   @@index([userId])
   @@map("group_memberships")
+}
+
+model GroupMessage {
+  id             String   @id @default(uuid())
+  groupId         String   @map("group_id")
+  authorId        String   @map("author_id")
+  content         String   @db.Text
+  reactionsCount  Int      @default(0) @map("reactions_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  group      Group                  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  author     User                   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  reactions  GroupMessageReaction[]
+
+  @@index([groupId])
+  @@index([authorId])
+  @@index([createdAt(sort: Desc)])
+  @@map("group_messages")
+}
+
+model GroupMessageReaction {
+  id        String   @id @default(uuid())
+  messageId String   @map("message_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  message GroupMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId])
+  @@map("group_message_reactions")
 }
 
 model Classroom {

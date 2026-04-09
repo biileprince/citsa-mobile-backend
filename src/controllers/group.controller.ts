@@ -352,6 +352,225 @@ export const getGroupCategories = asyncHandler(
   },
 );
 
+/**
+ * Get group messages (members only)
+ * GET /api/v1/groups/:id/messages
+ */
+export const getGroupMessages = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+    const userId = req.user!.userId;
+    const { page, limit } = req.query as { page?: string; limit?: string };
+    const pagination = parsePaginationParams(page, limit);
+
+    const group = await prisma.group.findUnique({ where: { id } });
+    if (!group) {
+      throw ApiError.notFound("Group not found");
+    }
+
+    const membership = await prisma.groupMembership.findUnique({
+      where: { groupId_userId: { groupId: id, userId } },
+    });
+    if (!membership) {
+      throw ApiError.forbidden("You must be a member of this group");
+    }
+
+    const [messages, total] = await Promise.all([
+      prisma.groupMessage.findMany({
+        where: { groupId: id },
+        include: {
+          author: {
+            select: {
+              id: true,
+              fullName: true,
+              avatarUrl: true,
+            },
+          },
+          reactions: {
+            where: { userId },
+            select: { id: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        skip: pagination.skip,
+        take: pagination.limit,
+      }),
+      prisma.groupMessage.count({ where: { groupId: id } }),
+    ]);
+
+    const result = messages.map((message) => ({
+      id: message.id,
+      content: message.content,
+      reactionsCount: message.reactionsCount,
+      isReacted: message.reactions.length > 0,
+      createdAt: message.createdAt,
+      updatedAt: message.updatedAt,
+      author: message.author,
+    }));
+
+    const paginationMeta = calculatePagination(
+      pagination.page,
+      pagination.limit,
+      total,
+    );
+
+    sendSuccess(res, result, undefined, 200, paginationMeta);
+  },
+);
+
+/**
+ * Create group message (group admin only)
+ * POST /api/v1/groups/:id/messages
+ */
+export const createGroupMessage = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+    const userId = req.user!.userId;
+    const { content } = req.body;
+
+    const group = await prisma.group.findUnique({ where: { id } });
+    if (!group) {
+      throw ApiError.notFound("Group not found");
+    }
+
+    const membership = await prisma.groupMembership.findUnique({
+      where: { groupId_userId: { groupId: id, userId } },
+    });
+    if (!membership) {
+      throw ApiError.forbidden("You must be a member of this group");
+    }
+    if (membership.role !== "ADMIN") {
+      throw ApiError.forbidden("Only group admins can post messages");
+    }
+
+    const message = await prisma.groupMessage.create({
+      data: {
+        groupId: id,
+        authorId: userId,
+        content,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            fullName: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+
+    sendCreated(
+      res,
+      {
+        id: message.id,
+        content: message.content,
+        reactionsCount: message.reactionsCount,
+        isReacted: false,
+        createdAt: message.createdAt,
+        updatedAt: message.updatedAt,
+        author: message.author,
+      },
+      "Message posted successfully",
+    );
+  },
+);
+
+/**
+ * React to group message (members only)
+ * POST /api/v1/groups/:id/messages/:messageId/reactions
+ */
+export const reactToGroupMessage = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+    const messageId = getParamAsString(req.params.messageId);
+    const userId = req.user!.userId;
+
+    const membership = await prisma.groupMembership.findUnique({
+      where: { groupId_userId: { groupId: id, userId } },
+    });
+    if (!membership) {
+      throw ApiError.forbidden("You must be a member of this group");
+    }
+
+    const message = await prisma.groupMessage.findUnique({
+      where: { id: messageId },
+    });
+    if (!message || message.groupId !== id) {
+      throw ApiError.notFound("Message not found");
+    }
+
+    const existingReaction = await prisma.groupMessageReaction.findUnique({
+      where: {
+        messageId_userId: {
+          messageId,
+          userId,
+        },
+      },
+    });
+    if (existingReaction) {
+      throw ApiError.conflict("You have already reacted to this message");
+    }
+
+    await prisma.$transaction([
+      prisma.groupMessageReaction.create({
+        data: {
+          messageId,
+          userId,
+        },
+      }),
+      prisma.groupMessage.update({
+        where: { id: messageId },
+        data: { reactionsCount: { increment: 1 } },
+      }),
+    ]);
+
+    sendSuccess(res, { reacted: true }, "Reaction added successfully");
+  },
+);
+
+/**
+ * Remove reaction from group message (members only)
+ * DELETE /api/v1/groups/:id/messages/:messageId/reactions
+ */
+export const unreactToGroupMessage = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+    const messageId = getParamAsString(req.params.messageId);
+    const userId = req.user!.userId;
+
+    const membership = await prisma.groupMembership.findUnique({
+      where: { groupId_userId: { groupId: id, userId } },
+    });
+    if (!membership) {
+      throw ApiError.forbidden("You must be a member of this group");
+    }
+
+    const message = await prisma.groupMessage.findUnique({
+      where: { id: messageId },
+    });
+    if (!message || message.groupId !== id) {
+      throw ApiError.notFound("Message not found");
+    }
+
+    const deleted = await prisma.groupMessageReaction.deleteMany({
+      where: {
+        messageId,
+        userId,
+      },
+    });
+
+    if (deleted.count > 0) {
+      await prisma.groupMessage.update({
+        where: { id: messageId },
+        data: { reactionsCount: { decrement: 1 } },
+      });
+    }
+
+    sendSuccess(res, { reacted: false }, "Reaction removed successfully");
+  },
+);
+
 // ==================== ADMIN ENDPOINTS ====================
 
 /**
@@ -483,6 +702,10 @@ export default {
   leaveGroup,
   getMyGroups,
   getGroupCategories,
+  getGroupMessages,
+  createGroupMessage,
+  reactToGroupMessage,
+  unreactToGroupMessage,
   createGroup,
   updateGroup,
   deleteGroup,
