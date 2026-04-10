@@ -39,6 +39,14 @@ export const config = {
     fromName: process.env.RESEND_FROM_NAME || "CITSA App",
   },
 
+  // Cloudinary (file uploads)
+  cloudinary: {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME || "",
+    apiKey: process.env.CLOUDINARY_API_KEY || "",
+    apiSecret: process.env.CLOUDINARY_API_SECRET || "",
+    folder: process.env.CLOUDINARY_FOLDER || "citsa",
+  },
+
   // AWS S3
   aws: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
