@@ -538,7 +538,7 @@ export const deleteUser = asyncHandler(
       }
     }
 
-    // Delete avatar from S3 if exists
+    // Delete avatar from Cloudinary if exists
     if (user.avatarUrl) {
       deleteFileByUrl(user.avatarUrl).catch(() => {});
     }

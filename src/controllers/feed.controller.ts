@@ -394,7 +394,7 @@ export const createPost = asyncHandler(
       } catch (uploadError: any) {
         logger.error("Image upload failed:", uploadError);
         throw ApiError.badRequest(
-          `Image upload failed: ${uploadError.message || "Check S3 bucket configuration"}`,
+          `Image upload failed: ${uploadError.message || "Check Cloudinary configuration"}`,
         );
       }
     }
@@ -505,7 +505,7 @@ export const updatePost = asyncHandler(
       } catch (uploadError: any) {
         logger.error("Image upload failed:", uploadError);
         throw ApiError.badRequest(
-          `Image upload failed: ${uploadError.message || "Check S3 bucket configuration"}`,
+          `Image upload failed: ${uploadError.message || "Check Cloudinary configuration"}`,
         );
       }
     }
@@ -1167,7 +1167,7 @@ export const deletePost = asyncHandler(
       throw ApiError.notFound("Post not found");
     }
 
-    // Delete post image from S3 if exists
+    // Delete post image from Cloudinary if exists
     if (post.imageUrl) {
       const { deleteFileByUrl } =
         await import("../services/storage.service.js");
