@@ -2556,7 +2556,7 @@ paths:
     delete:
       tags: [Admin]
       summary: Delete post (Admin only)
-      description: Permanently delete a post and all associated data (comments, likes, saves, shares, event). Removes image from S3 if present.
+      description: Permanently delete a post and all associated data (comments, likes, saves, shares, event). Removes image from Cloudinary if present.
       operationId: adminDeletePost
       security:
         - BearerAuth: []
