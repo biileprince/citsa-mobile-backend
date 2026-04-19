@@ -17,11 +17,30 @@ import {
 } from "../types/index.js";
 import { asyncHandler, ApiError } from "../middleware/error.middleware.js";
 import { uploadFile } from "../services/storage.service.js";
+import { sendPushToUser } from "../services/pushNotification.service.js";
+import logger from "../utils/logger.js";
 
 /**
- * Transform post for API response
+ * Transform post for API response - includes likePreviewUser
  */
 function transformPost(post: any, userId?: string) {
+  // Build likePreviewUser: the first liker to show in "liked by X and N others"
+  let likePreviewUser = null;
+  if (post._likePreviewUsers && post._likePreviewUsers.length > 0) {
+    // Prefer showing the current user first if they liked it
+    const currentUserLike = userId
+      ? post._likePreviewUsers.find((l: any) => l.user?.id === userId)
+      : null;
+    const previewLike = currentUserLike || post._likePreviewUsers[0];
+    if (previewLike?.user) {
+      likePreviewUser = {
+        id: previewLike.user.id,
+        fullName: previewLike.user.fullName,
+        avatarUrl: previewLike.user.avatarUrl,
+      };
+    }
+  }
+
   return {
     id: post.id,
     type: post.type,
@@ -63,8 +82,27 @@ function transformPost(post: any, userId?: string) {
     isSaved: userId
       ? post.savedPosts?.some((saved: any) => saved.userId === userId)
       : false,
+    likePreviewUser,
   };
 }
+
+/**
+ * Common include for fetching like preview users on posts
+ */
+const likePreviewInclude = {
+  where: { likeableType: "post" },
+  select: {
+    user: {
+      select: {
+        id: true,
+        fullName: true,
+        avatarUrl: true,
+      },
+    },
+  },
+  take: 2,
+  orderBy: { createdAt: "desc" as const },
+};
 
 /**
  * Get feed posts with filtering and pagination
@@ -131,7 +169,39 @@ export const getPosts = asyncHandler(
       prisma.post.count({ where }),
     ]);
 
-    const transformedPosts = posts.map((post) => transformPost(post, userId));
+    // Fetch like preview users for each post
+    const postIds = posts.map((p) => p.id);
+    const likePreviewUsers =
+      postIds.length > 0
+        ? await prisma.like.findMany({
+            where: {
+              likeableType: "post",
+              likeableId: { in: postIds },
+            },
+            select: {
+              likeableId: true,
+              user: {
+                select: { id: true, fullName: true, avatarUrl: true },
+              },
+            },
+            orderBy: { createdAt: "desc" },
+          })
+        : [];
+
+    // Group by post id and take first 2
+    const previewByPost = new Map<string, any[]>();
+    for (const lp of likePreviewUsers) {
+      const existing = previewByPost.get(lp.likeableId) || [];
+      if (existing.length < 2) {
+        existing.push(lp);
+        previewByPost.set(lp.likeableId, existing);
+      }
+    }
+
+    const transformedPosts = posts.map((post) => {
+      (post as any)._likePreviewUsers = previewByPost.get(post.id) || [];
+      return transformPost(post, userId);
+    });
     const paginationMeta = calculatePagination(
       pagination.page,
       pagination.limit,
@@ -185,6 +255,16 @@ export const getPostById = asyncHandler(
                 avatarUrl: true,
               },
             },
+            likes: {
+              select: {
+                id: true,
+                userId: true,
+                reactionType: true,
+                user: {
+                  select: { id: true, fullName: true, avatarUrl: true },
+                },
+              },
+            },
             replies: {
               include: {
                 user: {
@@ -192,6 +272,16 @@ export const getPostById = asyncHandler(
                     id: true,
                     fullName: true,
                     avatarUrl: true,
+                  },
+                },
+                likes: {
+                  select: {
+                    id: true,
+                    userId: true,
+                    reactionType: true,
+                    user: {
+                      select: { id: true, fullName: true, avatarUrl: true },
+                    },
                   },
                 },
               },
@@ -214,22 +304,67 @@ export const getPostById = asyncHandler(
       data: { viewsCount: { increment: 1 } },
     });
 
+    // Fetch like preview users for this post
+    const likePreviewUsers = await prisma.like.findMany({
+      where: { likeableType: "post", likeableId: id },
+      select: {
+        user: {
+          select: { id: true, fullName: true, avatarUrl: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 2,
+    });
+    (post as any)._likePreviewUsers = likePreviewUsers;
+
+    /**
+     * Build reaction summary for a comment's likes
+     */
+    function buildCommentReactions(likes: any[], currentUserId?: string) {
+      const reactionCounts: Record<string, number> = {};
+      let userReaction: string | null = null;
+      for (const like of likes) {
+        const rt = like.reactionType || "LIKE";
+        reactionCounts[rt] = (reactionCounts[rt] || 0) + 1;
+        if (currentUserId && like.userId === currentUserId) {
+          userReaction = rt;
+        }
+      }
+      return { reactionCounts, userReaction };
+    }
+
     const transformedPost = {
       ...transformPost(post, userId),
-      comments: post.comments.map((comment) => ({
-        id: comment.id,
-        content: comment.content,
-        likesCount: comment.likesCount,
-        createdAt: comment.createdAt,
-        user: comment.user,
-        replies: comment.replies.map((reply) => ({
-          id: reply.id,
-          content: reply.content,
-          likesCount: reply.likesCount,
-          createdAt: reply.createdAt,
-          user: reply.user,
-        })),
-      })),
+      comments: post.comments.map((comment: any) => {
+        const { reactionCounts, userReaction } = buildCommentReactions(
+          comment.likes || [],
+          userId,
+        );
+        return {
+          id: comment.id,
+          content: comment.content,
+          likesCount: comment.likesCount,
+          createdAt: comment.createdAt,
+          user: comment.user,
+          reactionCounts,
+          userReaction,
+          replies: comment.replies.map((reply: any) => {
+            const replyReactions = buildCommentReactions(
+              reply.likes || [],
+              userId,
+            );
+            return {
+              id: reply.id,
+              content: reply.content,
+              likesCount: reply.likesCount,
+              createdAt: reply.createdAt,
+              user: reply.user,
+              reactionCounts: replyReactions.reactionCounts,
+              userReaction: replyReactions.userReaction,
+            };
+          }),
+        };
+      }),
     };
 
     sendSuccess(res, transformedPost);
@@ -248,14 +383,21 @@ export const createPost = asyncHandler(
     // Handle image upload if file is provided
     let imageUrl = data.imageUrl; // Fallback to URL if provided
     if (req.file) {
-      const uploadResult = await uploadFile(
-        req.file.buffer,
-        req.file.originalname,
-        req.file.mimetype,
-        "post",
-        userId,
-      );
-      imageUrl = uploadResult.url;
+      try {
+        const uploadResult = await uploadFile(
+          req.file.buffer,
+          req.file.originalname,
+          req.file.mimetype,
+          "post",
+          userId,
+        );
+        imageUrl = uploadResult.url;
+      } catch (uploadError: any) {
+        logger.error("Image upload failed:", uploadError);
+        throw ApiError.badRequest(
+          `Image upload failed: ${uploadError.message || "Check Cloudinary configuration"}`,
+        );
+      }
     }
 
     // Create post
@@ -352,14 +494,21 @@ export const updatePost = asyncHandler(
     // Handle image upload if file is provided
     let imageUrl = data.imageUrl; // Keep existing or use provided URL
     if (req.file) {
-      const uploadResult = await uploadFile(
-        req.file.buffer,
-        req.file.originalname,
-        req.file.mimetype,
-        "post",
-        userId,
-      );
-      imageUrl = uploadResult.url;
+      try {
+        const uploadResult = await uploadFile(
+          req.file.buffer,
+          req.file.originalname,
+          req.file.mimetype,
+          "post",
+          userId,
+        );
+        imageUrl = uploadResult.url;
+      } catch (uploadError: any) {
+        logger.error("Image upload failed:", uploadError);
+        throw ApiError.badRequest(
+          `Image upload failed: ${uploadError.message || "Check Cloudinary configuration"}`,
+        );
+      }
     }
 
     // Update post
@@ -522,6 +671,16 @@ export const likePost = asyncHandler(
           relatedEntityId: id,
         },
       });
+
+      await sendPushToUser(post.authorId, {
+        title: "New Like",
+        body: `${liker?.fullName || "Someone"} liked your post`,
+        data: {
+          type: "LIKE",
+          relatedEntityType: "post",
+          relatedEntityId: id,
+        },
+      });
     }
 
     sendSuccess(res, { liked: true }, "Post liked successfully");
@@ -625,6 +784,16 @@ export const addComment = asyncHandler(
           relatedEntityId: id,
         },
       });
+
+      await sendPushToUser(post.authorId, {
+        title: "New Comment",
+        body: `${commenter?.fullName || "Someone"} commented on your post`,
+        data: {
+          type: "COMMENT",
+          relatedEntityType: "post",
+          relatedEntityId: id,
+        },
+      });
     }
 
     sendCreated(
@@ -637,6 +806,243 @@ export const addComment = asyncHandler(
         user: comment.user,
       },
       "Comment added successfully",
+    );
+  },
+);
+
+/**
+ * Delete a comment (author or admin)
+ * DELETE /api/v1/feed/posts/:id/comments/:commentId
+ */
+export const deleteComment = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const postId = getParamAsString(req.params.id);
+    const commentId = getParamAsString(req.params.commentId);
+    const userId = req.user!.userId;
+    const userRole = req.user!.role;
+
+    // Verify post exists
+    const post = await prisma.post.findUnique({ where: { id: postId } });
+    if (!post) {
+      throw ApiError.notFound("Post not found");
+    }
+
+    // Verify comment exists and belongs to this post
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentId },
+      include: { _count: { select: { replies: true } } },
+    });
+
+    if (!comment || comment.postId !== postId) {
+      throw ApiError.notFound("Comment not found");
+    }
+
+    // Only comment author or admin can delete
+    if (comment.userId !== userId && userRole !== "ADMIN") {
+      throw ApiError.forbidden("You can only delete your own comments");
+    }
+
+    // Count total comments to remove (this comment + its replies)
+    const repliesCount = comment._count.replies;
+    const totalToRemove = 1 + repliesCount;
+
+    // Delete the comment (cascade will delete replies and likes)
+    await prisma.$transaction([
+      // Delete likes on replies first
+      prisma.like.deleteMany({
+        where: {
+          likeableType: "comment",
+          commentId: {
+            in: await prisma.comment
+              .findMany({
+                where: { parentCommentId: commentId },
+                select: { id: true },
+              })
+              .then((replies) => replies.map((r) => r.id)),
+          },
+        },
+      }),
+      // Delete likes on the comment itself
+      prisma.like.deleteMany({
+        where: { likeableType: "comment", commentId },
+      }),
+      // Delete replies
+      prisma.comment.deleteMany({
+        where: { parentCommentId: commentId },
+      }),
+      // Delete the comment
+      prisma.comment.delete({
+        where: { id: commentId },
+      }),
+      // Decrement post comment count
+      prisma.post.update({
+        where: { id: postId },
+        data: { commentsCount: { decrement: totalToRemove } },
+      }),
+    ]);
+
+    sendSuccess(res, { deleted: true }, "Comment deleted successfully");
+  },
+);
+
+/**
+ * React to a comment (like, love, laugh, wow)
+ * POST /api/v1/feed/posts/:id/comments/:commentId/react
+ */
+export const reactToComment = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const postId = getParamAsString(req.params.id);
+    const commentId = getParamAsString(req.params.commentId);
+    const userId = req.user!.userId;
+    const { reactionType } = req.body as { reactionType?: string };
+
+    const validReactions = ["LIKE", "LOVE", "LAUGH", "WOW"];
+    const reaction = (reactionType || "LIKE").toUpperCase();
+    if (!validReactions.includes(reaction)) {
+      throw ApiError.badRequest(
+        `Invalid reaction type. Must be one of: ${validReactions.join(", ")}`,
+      );
+    }
+
+    // Verify post and comment exist
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentId },
+    });
+    if (!comment || comment.postId !== postId) {
+      throw ApiError.notFound("Comment not found");
+    }
+
+    // Check if user already reacted
+    const existingLike = await prisma.like.findUnique({
+      where: {
+        userId_likeableType_likeableId: {
+          userId,
+          likeableType: "comment",
+          likeableId: commentId,
+        },
+      },
+    });
+
+    if (existingLike) {
+      // If same reaction, remove it (toggle off)
+      if (existingLike.reactionType === reaction) {
+        await prisma.$transaction([
+          prisma.like.delete({ where: { id: existingLike.id } }),
+          prisma.comment.update({
+            where: { id: commentId },
+            data: { likesCount: { decrement: 1 } },
+          }),
+        ]);
+        sendSuccess(
+          res,
+          { reacted: false, reactionType: null },
+          "Reaction removed",
+        );
+        return;
+      }
+
+      // Different reaction: update it
+      await prisma.like.update({
+        where: { id: existingLike.id },
+        data: { reactionType: reaction as any },
+      });
+      sendSuccess(
+        res,
+        { reacted: true, reactionType: reaction },
+        "Reaction updated",
+      );
+      return;
+    }
+
+    // Create new reaction
+    await prisma.$transaction([
+      prisma.like.create({
+        data: {
+          userId,
+          likeableType: "comment",
+          likeableId: commentId,
+          commentId,
+          reactionType: reaction as any,
+        },
+      }),
+      prisma.comment.update({
+        where: { id: commentId },
+        data: { likesCount: { increment: 1 } },
+      }),
+    ]);
+
+    // Notify comment author
+    if (comment.userId !== userId) {
+      const reactor = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { fullName: true },
+      });
+
+      const reactionEmoji: Record<string, string> = {
+        LIKE: "👍",
+        LOVE: "❤️",
+        LAUGH: "😂",
+        WOW: "😮",
+      };
+
+      await prisma.notification.create({
+        data: {
+          userId: comment.userId,
+          type: "LIKE",
+          title: "New Reaction",
+          message: `${reactor?.fullName || "Someone"} reacted ${reactionEmoji[reaction] || "👍"} to your comment`,
+          relatedEntityType: "comment",
+          relatedEntityId: commentId,
+        },
+      });
+
+      await sendPushToUser(comment.userId, {
+        title: "New Reaction",
+        body: `${reactor?.fullName || "Someone"} reacted to your comment`,
+        data: {
+          type: "LIKE",
+          relatedEntityType: "comment",
+          relatedEntityId: commentId,
+        },
+      });
+    }
+
+    sendSuccess(
+      res,
+      { reacted: true, reactionType: reaction },
+      "Reaction added",
+    );
+  },
+);
+
+/**
+ * Remove reaction from a comment
+ * DELETE /api/v1/feed/posts/:id/comments/:commentId/react
+ */
+export const unreactToComment = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const commentId = getParamAsString(req.params.commentId);
+    const userId = req.user!.userId;
+
+    const deleted = await prisma.like.deleteMany({
+      where: {
+        userId,
+        likeableType: "comment",
+        likeableId: commentId,
+      },
+    });
+
+    if (deleted.count > 0) {
+      await prisma.comment.update({
+        where: { id: commentId },
+        data: { likesCount: { decrement: 1 } },
+      });
+    }
+
+    sendSuccess(
+      res,
+      { reacted: false, reactionType: null },
+      "Reaction removed",
     );
   },
 );
@@ -773,6 +1179,69 @@ export const getSavedPosts = asyncHandler(
   },
 );
 
+// ==================== ADMIN ENDPOINTS ====================
+
+/**
+ * Delete post (Admin only)
+ * DELETE /api/v1/feed/posts/:id
+ */
+export const deletePost = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+
+    const post = await prisma.post.findUnique({
+      where: { id },
+      select: { id: true, imageUrl: true },
+    });
+
+    if (!post) {
+      throw ApiError.notFound("Post not found");
+    }
+
+    // Delete post image from Cloudinary if exists
+    if (post.imageUrl) {
+      const { deleteFileByUrl } =
+        await import("../services/storage.service.js");
+      deleteFileByUrl(post.imageUrl).catch(() => {});
+    }
+
+    // Cascade delete handles comments, likes, saves, shares, event
+    await prisma.post.delete({ where: { id } });
+
+    sendSuccess(res, null, "Post deleted successfully");
+  },
+);
+
+/**
+ * Toggle post pin status (Admin only)
+ * PATCH /api/v1/feed/posts/:id/pin
+ */
+export const togglePin = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+
+    const post = await prisma.post.findUnique({
+      where: { id },
+      select: { id: true, isPinned: true },
+    });
+
+    if (!post) {
+      throw ApiError.notFound("Post not found");
+    }
+
+    const updatedPost = await prisma.post.update({
+      where: { id },
+      data: { isPinned: !post.isPinned },
+    });
+
+    sendSuccess(
+      res,
+      { id: updatedPost.id, isPinned: updatedPost.isPinned },
+      `Post ${updatedPost.isPinned ? "pinned" : "unpinned"} successfully`,
+    );
+  },
+);
+
 export default {
   getPosts,
   getPostById,
@@ -781,8 +1250,13 @@ export default {
   likePost,
   unlikePost,
   addComment,
+  deleteComment,
+  reactToComment,
+  unreactToComment,
   savePost,
   unsavePost,
   sharePost,
   getSavedPosts,
+  deletePost,
+  togglePin,
 };

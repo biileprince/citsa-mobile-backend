@@ -1,10 +1,18 @@
 import { Router } from "express";
 import groupController from "../controllers/group.controller.js";
-import { authenticate, optionalAuth } from "../middleware/auth.middleware.js";
+import {
+  authenticate,
+  optionalAuth,
+  requireAdmin,
+} from "../middleware/auth.middleware.js";
 import {
   validate,
   groupIdValidation,
+  groupMessageIdValidation,
+  groupMessageValidation,
   groupQueryValidation,
+  createGroupValidation,
+  updateGroupValidation,
 } from "../middleware/validation.middleware.js";
 
 const router = Router();
@@ -80,6 +88,95 @@ router.delete(
   authenticate,
   validate(groupIdValidation),
   groupController.leaveGroup,
+);
+
+/**
+ * @route   GET /api/v1/groups/:id/messages
+ * @desc    Get group messages (members only)
+ * @access  Private
+ */
+router.get(
+  "/:id/messages",
+  authenticate,
+  validate(groupIdValidation),
+  groupController.getGroupMessages,
+);
+
+/**
+ * @route   POST /api/v1/groups/:id/messages
+ * @desc    Post group message (group admin only)
+ * @access  Private
+ */
+router.post(
+  "/:id/messages",
+  authenticate,
+  validate(groupMessageValidation),
+  groupController.createGroupMessage,
+);
+
+/**
+ * @route   POST /api/v1/groups/:id/messages/:messageId/reactions
+ * @desc    React to a group message (members only)
+ * @access  Private
+ */
+router.post(
+  "/:id/messages/:messageId/reactions",
+  authenticate,
+  validate(groupMessageIdValidation),
+  groupController.reactToGroupMessage,
+);
+
+/**
+ * @route   DELETE /api/v1/groups/:id/messages/:messageId/reactions
+ * @desc    Remove reaction from a group message (members only)
+ * @access  Private
+ */
+router.delete(
+  "/:id/messages/:messageId/reactions",
+  authenticate,
+  validate(groupMessageIdValidation),
+  groupController.unreactToGroupMessage,
+);
+
+// ==================== ADMIN ROUTES ====================
+
+/**
+ * @route   POST /api/v1/groups
+ * @desc    Create a new group (Admin only)
+ * @access  Private (Admin)
+ */
+router.post(
+  "/",
+  authenticate,
+  requireAdmin,
+  validate(createGroupValidation),
+  groupController.createGroup,
+);
+
+/**
+ * @route   PUT /api/v1/groups/:id
+ * @desc    Update group (Admin only)
+ * @access  Private (Admin)
+ */
+router.put(
+  "/:id",
+  authenticate,
+  requireAdmin,
+  validate(updateGroupValidation),
+  groupController.updateGroup,
+);
+
+/**
+ * @route   DELETE /api/v1/groups/:id
+ * @desc    Delete group (Admin only)
+ * @access  Private (Admin)
+ */
+router.delete(
+  "/:id",
+  authenticate,
+  requireAdmin,
+  validate(groupIdValidation),
+  groupController.deleteGroup,
 );
 
 export default router;

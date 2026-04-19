@@ -15,6 +15,7 @@ import {
   createCommentValidation,
 } from "../middleware/validation.middleware.js";
 import { uploadLimiter } from "../middleware/rateLimit.middleware.js";
+import { param, body } from "express-validator";
 
 const router = Router();
 
@@ -135,6 +136,43 @@ router.post(
   feedController.addComment,
 );
 
+// Delete a comment (author or admin)
+router.delete(
+  "/posts/:id/comments/:commentId",
+  authenticate,
+  validate([
+    ...postIdValidation,
+    param("commentId").isUUID().withMessage("Invalid comment ID"),
+  ]),
+  feedController.deleteComment,
+);
+
+// React to a comment (like, love, laugh, wow)
+router.post(
+  "/posts/:id/comments/:commentId/react",
+  authenticate,
+  validate([
+    ...postIdValidation,
+    param("commentId").isUUID().withMessage("Invalid comment ID"),
+    body("reactionType")
+      .optional()
+      .isIn(["LIKE", "LOVE", "LAUGH", "WOW"])
+      .withMessage("Reaction type must be one of: LIKE, LOVE, LAUGH, WOW"),
+  ]),
+  feedController.reactToComment,
+);
+
+// Remove reaction from a comment
+router.delete(
+  "/posts/:id/comments/:commentId/react",
+  authenticate,
+  validate([
+    ...postIdValidation,
+    param("commentId").isUUID().withMessage("Invalid comment ID"),
+  ]),
+  feedController.unreactToComment,
+);
+
 /**
  * @route   POST /api/v1/feed/posts/:id/save
  * @desc    Save post to bookmarks
@@ -169,6 +207,34 @@ router.post(
   authenticate,
   validate(postIdValidation),
   feedController.sharePost,
+);
+
+// ==================== ADMIN ROUTES ====================
+
+/**
+ * @route   DELETE /api/v1/feed/posts/:id
+ * @desc    Delete post (Admin only)
+ * @access  Private (Admin)
+ */
+router.delete(
+  "/posts/:id",
+  authenticate,
+  requireAdmin,
+  validate(postIdValidation),
+  feedController.deletePost,
+);
+
+/**
+ * @route   PATCH /api/v1/feed/posts/:id/pin
+ * @desc    Toggle post pin status (Admin only)
+ * @access  Private (Admin)
+ */
+router.patch(
+  "/posts/:id/pin",
+  authenticate,
+  requireAdmin,
+  validate(postIdValidation),
+  feedController.togglePin,
 );
 
 export default router;

@@ -143,8 +143,47 @@ async function main() {
         ]),
       },
     }),
+    prisma.user.upsert({
+      where: { studentId: "PS/ITC/25/0010" },
+      update: {
+        program: "Computer Science",
+      },
+      create: {
+        studentId: "PS/ITC/25/0010",
+        email: "swiftzak65@gmail.com",
+        role: UserRole.STUDENT,
+        isVerified: false,
+        program: "Computer Science",
+        classYear: "2029",
+      },
+    }),
   ]);
   console.log(`✅ Created ${students.length} sample students`);
+
+  // Create additional users
+  const additionalUsers = await Promise.all([
+    prisma.user.upsert({
+      where: { studentId: "PS/CSC/22/0138" },
+      update: {},
+      create: {
+        studentId: "PS/CSC/22/0138",
+        email: "zakjnr5@gmail.com",
+        role: UserRole.ADMIN,
+        isVerified: true,
+      },
+    }),
+    prisma.user.upsert({
+      where: { studentId: "PS/CSC/22/0001" },
+      update: {},
+      create: {
+        studentId: "PS/CSC/22/0001",
+        email: "bosszak94@gmail.com",
+        role: UserRole.CLASS_REP,
+        isVerified: true,
+      },
+    }),
+  ]);
+  console.log(`✅ Created ${additionalUsers.length} additional users`);
 
   // Create sample Groups
   const groups = await Promise.all([

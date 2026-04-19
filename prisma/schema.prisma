@@ -45,6 +45,7 @@ enum NotificationType {
   COMMENT
   EVENT_REMINDER
   ANNOUNCEMENT
+  GROUP_MESSAGE
   URGENT_ANNOUNCEMENT
   EVENT_FULL
   NEW_EVENT
@@ -55,6 +56,18 @@ enum GroupRole {
   MEMBER
   MODERATOR
   ADMIN
+}
+
+enum ReactionType {
+  LIKE
+  LOVE
+  LAUGH
+  WOW
+}
+
+enum Program {
+  COMPUTER_SCIENCE
+  INFORMATION_TECHNOLOGY
 }
 
 // Models
@@ -88,6 +101,12 @@ model User {
   shares                   Share[]
   classroomAnnouncements   ClassroomAnnouncement[]
   refreshTokens            RefreshToken[]
+  announcementLikes        AnnouncementLike[]
+  announcementComments     AnnouncementComment[]
+  announcementViews        AnnouncementView[]
+  groupMessages            GroupMessage[]
+  groupMessageReactions    GroupMessageReaction[]
+  deviceTokens             DeviceToken[]
 
   @@index([studentId])
   @@index([email])
@@ -219,13 +238,14 @@ model Comment {
 }
 
 model Like {
-  id           String   @id @default(uuid())
-  userId       String   @map("user_id")
-  likeableType String   @map("likeable_type") @db.VarChar(50) // 'post' or 'comment'
-  likeableId   String   @map("likeable_id")
-  postId       String?  @map("post_id")
-  commentId    String?  @map("comment_id")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id           String       @id @default(uuid())
+  userId       String       @map("user_id")
+  likeableType String       @map("likeable_type") @db.VarChar(50) // 'post' or 'comment'
+  likeableId   String       @map("likeable_id")
+  postId       String?      @map("post_id")
+  commentId    String?      @map("comment_id")
+  reactionType ReactionType @default(LIKE) @map("reaction_type")
+  createdAt    DateTime     @default(now()) @map("created_at")
 
   // Relations
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -285,6 +305,7 @@ model Group {
 
   // Relations
   memberships GroupMembership[]
+  messages    GroupMessage[]
 
   @@index([category])
   @@index([name])
@@ -308,11 +329,48 @@ model GroupMembership {
   @@map("group_memberships")
 }
 
+model GroupMessage {
+  id             String   @id @default(uuid())
+  groupId         String   @map("group_id")
+  authorId        String   @map("author_id")
+  content         String   @db.Text
+  reactionsCount  Int      @default(0) @map("reactions_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  group      Group                  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  author     User                   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  reactions  GroupMessageReaction[]
+
+  @@index([groupId])
+  @@index([authorId])
+  @@index([createdAt(sort: Desc)])
+  @@map("group_messages")
+}
+
+model GroupMessageReaction {
+  id        String   @id @default(uuid())
+  messageId String   @map("message_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  message GroupMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId])
+  @@map("group_message_reactions")
+}
+
 model Classroom {
   id             String   @id @default(uuid())
   yearGroup      String   @map("year_group") @db.VarChar(50)
   graduationYear String   @map("graduation_year") @db.VarChar(4)
   semester       String   @db.VarChar(50)
+  program        Program  @default(COMPUTER_SCIENCE)
   isActive       Boolean  @default(true) @map("is_active")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
@@ -342,11 +400,64 @@ model ClassroomAnnouncement {
   // Relations
   classroom Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
   rep       User?     @relation(fields: [repId], references: [id], onDelete: SetNull)
+  likes     AnnouncementLike[]
+  comments  AnnouncementComment[]
+  views     AnnouncementView[]
 
   @@index([classroomId])
   @@index([repId])
   @@index([createdAt(sort: Desc)])
   @@map("classroom_announcements")
+}
+
+model AnnouncementLike {
+  id             String   @id @default(uuid())
+  announcementId String   @map("announcement_id")
+  userId         String   @map("user_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  announcement ClassroomAnnouncement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@index([announcementId])
+  @@index([userId])
+  @@map("announcement_likes")
+}
+
+model AnnouncementComment {
+  id             String   @id @default(uuid())
+  announcementId String   @map("announcement_id")
+  userId         String   @map("user_id")
+  content        String   @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  announcement ClassroomAnnouncement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([announcementId])
+  @@index([userId])
+  @@index([createdAt(sort: Desc)])
+  @@map("announcement_comments")
+}
+
+model AnnouncementView {
+  id             String   @id @default(uuid())
+  announcementId String   @map("announcement_id")
+  userId         String   @map("user_id")
+  viewedAt       DateTime @default(now()) @map("viewed_at")
+
+  // Relations
+  announcement ClassroomAnnouncement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@index([announcementId])
+  @@index([userId])
+  @@map("announcement_views")
 }
 
 model Course {
@@ -418,4 +529,23 @@ model Notification {
   @@index([isRead])
   @@index([createdAt(sort: Desc)])
   @@map("notifications")
+}
+
+model DeviceToken {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  token      String   @unique @db.VarChar(500)
+  platform   String   @db.VarChar(20)
+  deviceId   String?  @map("device_id") @db.VarChar(255)
+  isActive   Boolean  @default(true) @map("is_active")
+  lastSeenAt DateTime @default(now()) @map("last_seen_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isActive])
+  @@map("device_tokens")
 }

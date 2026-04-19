@@ -2,12 +2,14 @@ import { Request, Response } from "express";
 import prisma from "../config/database.js";
 import {
   sendSuccess,
+  sendCreated,
   calculatePagination,
   parsePaginationParams,
   getParamAsString,
 } from "../utils/helpers.js";
 import { AuthenticatedRequest, GroupQueryParams } from "../types/index.js";
 import { asyncHandler, ApiError } from "../middleware/error.middleware.js";
+import { sendPushToUsers } from "../services/pushNotification.service.js";
 
 /**
  * Transform group for API response
@@ -351,6 +353,384 @@ export const getGroupCategories = asyncHandler(
   },
 );
 
+/**
+ * Get group messages (members only)
+ * GET /api/v1/groups/:id/messages
+ */
+export const getGroupMessages = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+    const userId = req.user!.userId;
+    const { page, limit } = req.query as { page?: string; limit?: string };
+    const pagination = parsePaginationParams(page, limit);
+
+    const group = await prisma.group.findUnique({ where: { id } });
+    if (!group) {
+      throw ApiError.notFound("Group not found");
+    }
+
+    const membership = await prisma.groupMembership.findUnique({
+      where: { groupId_userId: { groupId: id, userId } },
+    });
+    if (!membership) {
+      throw ApiError.forbidden("You must be a member of this group");
+    }
+
+    const [messages, total] = await Promise.all([
+      prisma.groupMessage.findMany({
+        where: { groupId: id },
+        include: {
+          author: {
+            select: {
+              id: true,
+              fullName: true,
+              avatarUrl: true,
+            },
+          },
+          reactions: {
+            where: { userId },
+            select: { id: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        skip: pagination.skip,
+        take: pagination.limit,
+      }),
+      prisma.groupMessage.count({ where: { groupId: id } }),
+    ]);
+
+    const result = messages.map((message) => ({
+      id: message.id,
+      content: message.content,
+      reactionsCount: message.reactionsCount,
+      isReacted: message.reactions.length > 0,
+      createdAt: message.createdAt,
+      updatedAt: message.updatedAt,
+      author: message.author,
+    }));
+
+    const paginationMeta = calculatePagination(
+      pagination.page,
+      pagination.limit,
+      total,
+    );
+
+    sendSuccess(res, result, undefined, 200, paginationMeta);
+  },
+);
+
+/**
+ * Create group message (group admin only)
+ * POST /api/v1/groups/:id/messages
+ */
+export const createGroupMessage = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+    const userId = req.user!.userId;
+    const { content } = req.body;
+
+    const group = await prisma.group.findUnique({ where: { id } });
+    if (!group) {
+      throw ApiError.notFound("Group not found");
+    }
+
+    const membership = await prisma.groupMembership.findUnique({
+      where: { groupId_userId: { groupId: id, userId } },
+    });
+    if (!membership) {
+      throw ApiError.forbidden("You must be a member of this group");
+    }
+    if (membership.role !== "ADMIN") {
+      throw ApiError.forbidden("Only group admins can post messages");
+    }
+
+    const message = await prisma.groupMessage.create({
+      data: {
+        groupId: id,
+        authorId: userId,
+        content,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            fullName: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+
+    const members = await prisma.groupMembership.findMany({
+      where: {
+        groupId: id,
+        userId: { not: userId },
+      },
+      select: { userId: true },
+    });
+
+    if (members.length > 0) {
+      await prisma.notification.createMany({
+        data: members.map((member) => ({
+          userId: member.userId,
+          type: "GROUP_MESSAGE",
+          title: `New message in ${group.name}`,
+          message: content,
+          relatedEntityType: "group",
+          relatedEntityId: id,
+        })),
+      });
+
+      await sendPushToUsers(
+        members.map((member) => member.userId),
+        {
+          title: `New message in ${group.name}`,
+          body: content,
+          data: {
+            type: "GROUP_MESSAGE",
+            relatedEntityType: "group",
+            relatedEntityId: id,
+            groupId: id,
+            messageId: message.id,
+          },
+        },
+      );
+    }
+
+    sendCreated(
+      res,
+      {
+        id: message.id,
+        content: message.content,
+        reactionsCount: message.reactionsCount,
+        isReacted: false,
+        createdAt: message.createdAt,
+        updatedAt: message.updatedAt,
+        author: message.author,
+      },
+      "Message posted successfully",
+    );
+  },
+);
+
+/**
+ * React to group message (members only)
+ * POST /api/v1/groups/:id/messages/:messageId/reactions
+ */
+export const reactToGroupMessage = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+    const messageId = getParamAsString(req.params.messageId);
+    const userId = req.user!.userId;
+
+    const membership = await prisma.groupMembership.findUnique({
+      where: { groupId_userId: { groupId: id, userId } },
+    });
+    if (!membership) {
+      throw ApiError.forbidden("You must be a member of this group");
+    }
+
+    const message = await prisma.groupMessage.findUnique({
+      where: { id: messageId },
+    });
+    if (!message || message.groupId !== id) {
+      throw ApiError.notFound("Message not found");
+    }
+
+    const existingReaction = await prisma.groupMessageReaction.findUnique({
+      where: {
+        messageId_userId: {
+          messageId,
+          userId,
+        },
+      },
+    });
+    if (existingReaction) {
+      throw ApiError.conflict("You have already reacted to this message");
+    }
+
+    await prisma.$transaction([
+      prisma.groupMessageReaction.create({
+        data: {
+          messageId,
+          userId,
+        },
+      }),
+      prisma.groupMessage.update({
+        where: { id: messageId },
+        data: { reactionsCount: { increment: 1 } },
+      }),
+    ]);
+
+    sendSuccess(res, { reacted: true }, "Reaction added successfully");
+  },
+);
+
+/**
+ * Remove reaction from group message (members only)
+ * DELETE /api/v1/groups/:id/messages/:messageId/reactions
+ */
+export const unreactToGroupMessage = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+    const messageId = getParamAsString(req.params.messageId);
+    const userId = req.user!.userId;
+
+    const membership = await prisma.groupMembership.findUnique({
+      where: { groupId_userId: { groupId: id, userId } },
+    });
+    if (!membership) {
+      throw ApiError.forbidden("You must be a member of this group");
+    }
+
+    const message = await prisma.groupMessage.findUnique({
+      where: { id: messageId },
+    });
+    if (!message || message.groupId !== id) {
+      throw ApiError.notFound("Message not found");
+    }
+
+    const deleted = await prisma.groupMessageReaction.deleteMany({
+      where: {
+        messageId,
+        userId,
+      },
+    });
+
+    if (deleted.count > 0) {
+      await prisma.groupMessage.update({
+        where: { id: messageId },
+        data: { reactionsCount: { decrement: 1 } },
+      });
+    }
+
+    sendSuccess(res, { reacted: false }, "Reaction removed successfully");
+  },
+);
+
+// ==================== ADMIN ENDPOINTS ====================
+
+/**
+ * Create group (Admin only)
+ * POST /api/v1/groups
+ */
+export const createGroup = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const userId = req.user!.userId;
+    const { name, description, category, coverColor } = req.body;
+
+    // Check for duplicate name
+    const existing = await prisma.group.findFirst({
+      where: { name },
+    });
+    if (existing) {
+      throw ApiError.conflict(`Group "${name}" already exists`);
+    }
+
+    // Create group and add creator as admin member in a transaction
+    const [group] = await prisma.$transaction([
+      prisma.group.create({
+        data: {
+          name,
+          description,
+          category,
+          coverColor,
+          membersCount: 1,
+        },
+      }),
+    ]);
+
+    // Add the creator as group admin
+    await prisma.groupMembership.create({
+      data: {
+        groupId: group.id,
+        userId,
+        role: "ADMIN",
+      },
+    });
+
+    const createdGroup = await prisma.group.findUnique({
+      where: { id: group.id },
+      include: {
+        memberships: {
+          where: { userId },
+          select: { userId: true, role: true },
+        },
+      },
+    });
+
+    sendCreated(
+      res,
+      transformGroup(createdGroup, userId),
+      "Group created successfully",
+    );
+  },
+);
+
+/**
+ * Update group (Admin only)
+ * PUT /api/v1/groups/:id
+ */
+export const updateGroup = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+    const { name, description, category, coverColor, isActive } = req.body;
+
+    const group = await prisma.group.findUnique({ where: { id } });
+    if (!group) {
+      throw ApiError.notFound("Group not found");
+    }
+
+    // If name changed, check for duplicates
+    if (name && name !== group.name) {
+      const existing = await prisma.group.findFirst({
+        where: { name, id: { not: id } },
+      });
+      if (existing) {
+        throw ApiError.conflict(`Group "${name}" already exists`);
+      }
+    }
+
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+    if (category !== undefined) updateData.category = category;
+    if (coverColor !== undefined) updateData.coverColor = coverColor;
+    if (isActive !== undefined) updateData.isActive = isActive;
+
+    const updatedGroup = await prisma.group.update({
+      where: { id },
+      data: updateData,
+    });
+
+    sendSuccess(
+      res,
+      transformGroup(updatedGroup),
+      "Group updated successfully",
+    );
+  },
+);
+
+/**
+ * Delete group (Admin only)
+ * DELETE /api/v1/groups/:id
+ */
+export const deleteGroup = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const id = getParamAsString(req.params.id);
+
+    const group = await prisma.group.findUnique({ where: { id } });
+    if (!group) {
+      throw ApiError.notFound("Group not found");
+    }
+
+    // Cascade delete handles memberships
+    await prisma.group.delete({ where: { id } });
+
+    sendSuccess(res, null, "Group deleted successfully");
+  },
+);
+
 export default {
   getGroups,
   getGroupById,
@@ -359,4 +739,11 @@ export default {
   leaveGroup,
   getMyGroups,
   getGroupCategories,
+  getGroupMessages,
+  createGroupMessage,
+  reactToGroupMessage,
+  unreactToGroupMessage,
+  createGroup,
+  updateGroup,
+  deleteGroup,
 };

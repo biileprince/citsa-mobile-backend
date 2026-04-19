@@ -1,218 +1,106 @@
-import nodemailer from "nodemailer";
-import { google } from "googleapis";
+import { Resend } from "resend";
 import config from "../config/index.js";
 import logger from "../utils/logger.js";
 
-// Email transport type
-type TransportType = "gmail-api" | "smtp" | "none";
-let activeTransport: TransportType = "none";
-
-// Gmail API client (preferred)
-let gmailClient: any = null;
-let gmailAuth: any = null;
-
-// Create SMTP transporter (fallback - DISABLED)
-let smtpTransporter: nodemailer.Transporter | null = null;
+let resendClient: Resend | null = null;
+let isReady = false;
 
 /**
- * Initialize Gmail API client using googleapis
- */
-async function createGmailClient(): Promise<any> {
-  try {
-    const { clientId, clientSecret, refreshToken, fromEmail } = config.gmail;
-
-    if (!clientId || !clientSecret || !refreshToken || !fromEmail) {
-      logger.warn("Gmail API credentials not configured");
-      return null;
-    }
-
-    const OAuth2 = google.auth.OAuth2;
-    const oauth2Client = new OAuth2(
-      clientId,
-      clientSecret,
-      "https://developers.google.com/oauthplayground"
-    );
-
-    oauth2Client.setCredentials({
-      refresh_token: refreshToken,
-    });
-
-    // Test that we can get an access token
-    const accessToken = await oauth2Client.getAccessToken();
-    if (!accessToken.token) {
-      logger.error("Failed to get Gmail OAuth2 access token");
-      return null;
-    }
-
-    const gmail = google.gmail({ version: "v1", auth: oauth2Client });
-
-    logger.info(`📧 Gmail API configured: ${fromEmail}`);
-    return { gmail, auth: oauth2Client, fromEmail };
-  } catch (error) {
-    logger.error("Failed to create Gmail API client:", error);
-    return null;
-  }
-}
-
-/**
- * Initialize SMTP transporter (fallback - DISABLED FOR DEBUGGING)
- */
-function createSmtpTransporter(): nodemailer.Transporter | null {
-  // SMTP DISABLED - Gmail API only
-  logger.warn("⚠️ SMTP transport disabled - using Gmail API only");
-  return null;
-  
-  /* SMTP CODE COMMENTED OUT
-  try {
-    const { host, port, user, password } = config.smtp;
-
-    if (!host || !user || !password) {
-      return null;
-    }
-
-    const isImplicitSSL = port === 465;
-
-    const transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: isImplicitSSL,
-      auth: {
-        user,
-        pass: password,
-      },
-      tls: {
-        rejectUnauthorized: false,
-        minVersion: "TLSv1.2",
-      },
-      connectionTimeout: 15000,
-      greetingTimeout: 15000,
-      socketTimeout: 30000,
-      ...(!isImplicitSSL && port === 587 ? { requireTLS: true } : {}),
-    });
-
-    logger.info(
-      `📧 SMTP configured: ${host}:${port} (${isImplicitSSL ? "SSL" : "STARTTLS"})`,
-    );
-    return transporter;
-  } catch (error) {
-    logger.error("Failed to create SMTP transporter:", error);
-    return null;
-  }
-  */
-}
-
-/**
- * Initialize email transporters (Gmail API only)
+ * Initialize Resend email client
  */
 async function initializeTransports() {
-  // Try Gmail API (ONLY option now)
-  gmailClient = await createGmailClient();
-  gmailAuth = gmailClient?.auth;
-  
-  if (gmailClient) {
-    activeTransport = "gmail-api";
-    logger.info("✅ Email transport: Gmail API (OAuth2 direct)");
+  const { apiKey, fromEmail } = config.resend;
+
+  if (!apiKey) {
+    logger.error("❌ Resend API key not configured - emails will not work!");
+    logger.error("Required env var: RESEND_API_KEY");
+    isReady = false;
     return;
   }
 
-  // NO SMTP FALLBACK - Force Gmail API
-  logger.error("❌ Gmail API not configured - emails will not work!");
-  logger.error("Required env vars: GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, GMAIL_FROM_EMAIL");
-  activeTransport = "none";
-  
-  /* SMTP FALLBACK DISABLED
-  // Fallback to SMTP
-  smtpTransporter = createSmtpTransporter();
-  if (smtpTransporter) {
-    activeTransport = "smtp";
-    logger.info("✅ Email transport: SMTP (fallback)");
-    return;
-  // NO SMTP FALLBACK - Force Gmail API
-  logger.error("❌ Gmail API not configured - emails will not work!");
-  logger.error("Required env vars: GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, GMAIL_FROM_EMAIL");
-  activeTransport = "none";
-  
-  /* SMTP FALLBACK DISABLED
-  // Fallback to SMTP
-  smtpTransporter = createSmtpTransporter();
-  if (smtpTransporter) {
-    activeTransport = "smtp";
-    logger.info("✅ Email transport: SMTP (fallback)");
-    return;
-  }
-
-  // No transport available
-  activeTransport = "none";
-  logger.warn("⚠️ No email transport configured - emails will not be sent");
-  */
+  resendClient = new Resend(apiKey);
+  isReady = true;
+  logger.info(`✅ Email transport: Resend API (from: ${fromEmail})`);
 }
 
 // Initialize on module load
 initializeTransports();
 
 /**
- * Create email MIME message
+ * Send email via Resend
  */
-function createEmailMime(
+async function sendEmail(
   to: string,
   subject: string,
-  htmlBody: string,
-  textBody: string
-): string {
-  const from = `"${config.gmail.fromName}" <${config.gmail.fromEmail}>`;
-  
-  const messageParts = [
-    `From: ${from}`,
-    `To: ${to}`,
-    `Subject: ${subject}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/html; charset=utf-8',
-    '',
-    htmlBody
-  ];
-  
-  const message = messageParts.join('\n');
-  
-  // Encode to base64url
-  const encodedMessage = Buffer.from(message)
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-  
-  return encodedMessage;
-}
-
-/**
- * Send email using Gmail API directly
- */
-async function sendViaGmailAPI(
-  to: string,
-  subject: string,
-  htmlBody: string,
-  textBody: string
+  html: string,
+  text: string,
 ): Promise<boolean> {
   try {
-    if (!gmailClient || !gmailClient.gmail) {
-      logger.error("Gmail API client not initialized");
+    if (!resendClient || !isReady) {
+      logger.error("Resend client not initialized");
       return false;
     }
 
-    const raw = createEmailMime(to, subject, htmlBody, textBody);
-
-    const result = await gmailClient.gmail.users.messages.send({
-      userId: 'me',
-      requestBody: {
-        raw: raw,
-      },
+    const { data, error } = await resendClient.emails.send({
+      from: `${config.resend.fromName} <${config.resend.fromEmail}>`,
+      to: [to],
+      subject,
+      html,
+      text,
     });
 
-    logger.info(`Email sent successfully via Gmail API to ${to}: ${result.data.id}`);
+    if (error) {
+      logger.error("Resend API error:", error);
+      return false;
+    }
+
+    logger.info(`Email sent via Resend to ${to}: ${data?.id}`);
     return true;
   } catch (error) {
-    logger.error("Failed to send email via Gmail API:", error);
+    logger.error("Failed to send email via Resend:", error);
     return false;
   }
+}
+
+/**
+ * Shared email layout wrapper
+ */
+function emailLayout(content: string): string {
+  const year = new Date().getFullYear();
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>CITSA</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;">
+    <tr>
+      <td align="center" style="padding:40px 20px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
+          <tr>
+            <td style="padding:32px 40px 24px;text-align:center;border-bottom:1px solid #e4e4e7;">
+              <span style="font-size:20px;font-weight:700;color:#18181b;letter-spacing:-0.3px;">CITSA</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 40px;">
+              ${content}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 40px;text-align:center;border-top:1px solid #e4e4e7;">
+              <p style="margin:0;font-size:12px;color:#a1a1aa;line-height:1.5;">&copy; ${year} CITSA &mdash; Computer &amp; IT Students Association</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 }
 
 /**
@@ -223,63 +111,38 @@ export async function sendOtpEmail(
   otpCode: string,
 ): Promise<boolean> {
   try {
-    if (activeTransport !== "gmail-api") {
-      logger.error("Gmail API not available - cannot send OTP email");
+    if (!isReady) {
+      logger.error("Resend not available - cannot send OTP email");
       return false;
     }
 
-    const htmlBody = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Verification Code</title>
-        </head>
-        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f5f5f5;">
-          <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 40px;">
-            <div style="text-align: center; margin-bottom: 30px;">
-              <h1 style="color: #1a1a2e; margin: 0;">CITSA App</h1>
-              <p style="color: #666; margin-top: 5px;">Computer & IT Students Association</p>
-            </div>
-            
-            <div style="background-color: #f8f9fa; border-radius: 10px; padding: 30px; text-align: center;">
-              <h2 style="color: #333; margin-top: 0;">Your Verification Code</h2>
-              <p style="color: #666; margin-bottom: 20px;">Enter this code to verify your identity:</p>
-              
-              <div style="background-color: #1a1a2e; border-radius: 8px; padding: 20px; margin: 20px 0;">
-                <span style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #ffffff;">${otpCode}</span>
-              </div>
-              
-              <p style="color: #dc3545; font-size: 14px; margin-top: 20px;">
-                ⏱️ This code expires in ${Math.floor(config.otp.expirySeconds / 60)} minutes
-              </p>
-            </div>
-            
-            <div style="margin-top: 30px; text-align: center; color: #666; font-size: 12px;">
-              <p>If you didn't request this code, please ignore this email.</p>
-              <p style="margin-top: 20px;">
-                © ${new Date().getFullYear()} CITSA - Computer & IT Students Association
-              </p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
-      
-    const textBody = `Your CITSA App verification code is: ${otpCode}. This code expires in ${Math.floor(config.otp.expirySeconds / 60)} minutes.`;
+    const expiryMin = Math.floor(config.otp.expirySeconds / 60);
 
-    const result = await sendViaGmailAPI(
+    const content = `
+      <p style="margin:0 0 16px;font-size:15px;color:#3f3f46;line-height:1.6;">Enter the following code to verify your identity.</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td align="center" style="padding:20px 0;">
+            <span style="display:inline-block;font-size:32px;font-weight:700;letter-spacing:6px;color:#18181b;background-color:#f4f4f5;padding:16px 32px;border-radius:8px;border:1px solid #e4e4e7;">${otpCode}</span>
+          </td>
+        </tr>
+      </table>
+      <p style="margin:0;font-size:13px;color:#71717a;line-height:1.5;">This code expires in ${expiryMin} minute${expiryMin !== 1 ? "s" : ""}. If you didn't request this, you can safely ignore this email.</p>`;
+
+    const htmlBody = emailLayout(content);
+    const textBody = `Your verification code is: ${otpCode}\n\nThis code expires in ${expiryMin} minute${expiryMin !== 1 ? "s" : ""}. If you didn't request this, you can safely ignore this email.`;
+
+    const result = await sendEmail(
       email,
-      "Your CITSA App Verification Code",
+      `${otpCode} is your verification code`,
       htmlBody,
-      textBody
+      textBody,
     );
-    
+
     if (result) {
-      logger.info(`OTP email sent to ${email} via Gmail API`);
+      logger.info(`OTP email sent to ${email} via Resend`);
     }
-    
+
     return result;
   } catch (error) {
     logger.error("Failed to send OTP email:", error);
@@ -290,20 +153,35 @@ export async function sendOtpEmail(
 /**
  * Send welcome email after registration
  */
-/**
- * Send welcome email after registration (Gmail API implementation pending)
- */
 export async function sendWelcomeEmail(
   email: string,
   fullName: string,
 ): Promise<boolean> {
-  logger.warn(`Welcome email not implemented yet for ${email} (Gmail API only mode)`);
-  // TODO: Implement with sendViaGmailAPI
-  return true; // Don't fail registration if welcome email doesn't send
+  try {
+    if (!isReady) {
+      logger.warn(`Resend not available - skipping welcome email for ${email}`);
+      return true;
+    }
+
+    const firstName = fullName.split(" ")[0];
+
+    const content = `
+      <p style="margin:0 0 16px;font-size:15px;color:#3f3f46;line-height:1.6;">Hi ${firstName},</p>
+      <p style="margin:0 0 16px;font-size:15px;color:#3f3f46;line-height:1.6;">Your account has been created. You're now part of the CITSA community.</p>
+      <p style="margin:0;font-size:15px;color:#3f3f46;line-height:1.6;">Open the app to explore events, connect with peers, and stay in the loop.</p>`;
+
+    const htmlBody = emailLayout(content);
+    const textBody = `Hi ${firstName},\n\nYour account has been created. You're now part of the CITSA community.\n\nOpen the app to explore events, connect with peers, and stay in the loop.`;
+
+    return await sendEmail(email, "Welcome to CITSA", htmlBody, textBody);
+  } catch (error) {
+    logger.error("Failed to send welcome email:", error);
+    return true;
+  }
 }
 
 /**
- * Send event reminder email (Gmail API implementation pending)
+ * Send event reminder email
  */
 export async function sendEventReminderEmail(
   email: string,
@@ -313,9 +191,43 @@ export async function sendEventReminderEmail(
   eventTime: string,
   location: string,
 ): Promise<boolean> {
-  logger.warn(`Event reminder email not implemented yet for ${email} (Gmail API only mode)`);
-  // TODO: Implement with sendViaGmailAPI
-  return true; // Don't fail event registration if reminder doesn't send
+  try {
+    if (!isReady) {
+      logger.warn(
+        `Resend not available - skipping event reminder for ${email}`,
+      );
+      return true;
+    }
+
+    const firstName = fullName.split(" ")[0];
+
+    const content = `
+      <p style="margin:0 0 16px;font-size:15px;color:#3f3f46;line-height:1.6;">Hi ${firstName},</p>
+      <p style="margin:0 0 16px;font-size:15px;color:#3f3f46;line-height:1.6;">Reminder for your upcoming event:</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;background-color:#f4f4f5;border-radius:6px;">
+        <tr>
+          <td style="padding:16px 20px;">
+            <p style="margin:0 0 8px;font-size:16px;font-weight:600;color:#18181b;">${eventTitle}</p>
+            <p style="margin:0 0 4px;font-size:14px;color:#52525b;">${eventDate} at ${eventTime}</p>
+            <p style="margin:0;font-size:14px;color:#52525b;">${location}</p>
+          </td>
+        </tr>
+      </table>
+      <p style="margin:0;font-size:13px;color:#71717a;line-height:1.5;">Open the app for more details.</p>`;
+
+    const htmlBody = emailLayout(content);
+    const textBody = `Hi ${firstName},\n\nReminder: ${eventTitle}\n${eventDate} at ${eventTime}\n${location}`;
+
+    return await sendEmail(
+      email,
+      `Reminder: ${eventTitle}`,
+      htmlBody,
+      textBody,
+    );
+  } catch (error) {
+    logger.error("Failed to send event reminder email:", error);
+    return true;
+  }
 }
 
 /**
@@ -323,18 +235,12 @@ export async function sendEventReminderEmail(
  */
 export async function verifyEmailConnection(): Promise<boolean> {
   try {
-    // Gmail API - just check if client is initialized
-    if (activeTransport === "gmail-api" && gmailClient) {
-      logger.info("Gmail API client ready (OAuth2 verified)");
+    if (isReady && resendClient) {
+      logger.info("Resend API client ready");
       return true;
     }
 
-    if (activeTransport === "none") {
-      logger.error("No email transport configured");
-      return false;
-    }
-
-    logger.warn("Unknown transport type");
+    logger.error("Resend not configured");
     return false;
   } catch (error) {
     logger.error("Email connection verification failed:", error);
@@ -352,4 +258,3 @@ export default {
   sendEventReminderEmail,
   verifyEmailConnection,
 };
-

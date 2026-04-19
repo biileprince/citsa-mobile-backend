@@ -10,6 +10,7 @@ import {
 } from "./middleware/error.middleware.js";
 import { apiLimiter } from "./middleware/rateLimit.middleware.js";
 import logger from "./utils/logger.js";
+import { setupSwagger } from "./docs/swagger.js";
 
 // Create Express app
 const app: Express = express();
@@ -51,13 +52,16 @@ app.use(`/api/${config.apiVersion}`, apiLimiter);
 // API routes
 app.use(`/api/${config.apiVersion}`, routes);
 
+// Swagger API documentation
+setupSwagger(app);
+
 // Root endpoint
 app.get("/", (req, res) => {
   res.json({
     success: true,
     message: "Welcome to CITSA Backend API",
     version: config.apiVersion,
-    docs: `/api/${config.apiVersion}/health`,
+    docs: "/api-docs",
   });
 });
 

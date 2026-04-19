@@ -1,10 +1,15 @@
 import { Router } from "express";
 import eventController from "../controllers/event.controller.js";
-import { authenticate, optionalAuth } from "../middleware/auth.middleware.js";
+import {
+  authenticate,
+  optionalAuth,
+  requireAdmin,
+} from "../middleware/auth.middleware.js";
 import {
   validate,
   eventIdValidation,
   eventQueryValidation,
+  updateEventValidation,
 } from "../middleware/validation.middleware.js";
 
 const router = Router();
@@ -67,6 +72,34 @@ router.delete(
   authenticate,
   validate(eventIdValidation),
   eventController.cancelRegistration,
+);
+
+// ==================== ADMIN ROUTES ====================
+
+/**
+ * @route   PUT /api/v1/events/:id
+ * @desc    Update event (Admin only)
+ * @access  Private (Admin)
+ */
+router.put(
+  "/:id",
+  authenticate,
+  requireAdmin,
+  validate(updateEventValidation),
+  eventController.updateEvent,
+);
+
+/**
+ * @route   DELETE /api/v1/events/:id
+ * @desc    Delete event (Admin only)
+ * @access  Private (Admin)
+ */
+router.delete(
+  "/:id",
+  authenticate,
+  requireAdmin,
+  validate(eventIdValidation),
+  eventController.deleteEvent,
 );
 
 export default router;

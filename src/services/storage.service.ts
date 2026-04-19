@@ -1,21 +1,14 @@
-import {
-  S3Client,
-  PutObjectCommand,
-  DeleteObjectCommand,
-  GetObjectCommand,
-} from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { v2 as cloudinary } from "cloudinary";
 import { v4 as uuidv4 } from "uuid";
 import config from "../config/index.js";
 import logger from "../utils/logger.js";
 
-// Initialize S3 client
-const s3Client = new S3Client({
-  region: config.aws.region,
-  credentials: {
-    accessKeyId: config.aws.accessKeyId,
-    secretAccessKey: config.aws.secretAccessKey,
-  },
+// Initialize Cloudinary client
+cloudinary.config({
+  cloud_name: config.cloudinary.cloudName,
+  api_key: config.cloudinary.apiKey,
+  api_secret: config.cloudinary.apiSecret,
+  secure: true,
 });
 
 // Allowed file types
@@ -35,9 +28,9 @@ const MAX_FILE_SIZE = {
 export type UploadType = "avatar" | "post" | "event" | "group";
 
 /**
- * Generate S3 key for upload
+ * Generate Cloudinary public ID for upload
  */
-function generateS3Key(
+function generatePublicId(
   type: UploadType,
   userId: string,
   filename: string,
@@ -60,7 +53,7 @@ function generateS3Key(
 }
 
 /**
- * Upload file to S3
+ * Upload file to Cloudinary
  */
 export async function uploadFile(
   buffer: Buffer,
@@ -84,79 +77,109 @@ export async function uploadFile(
     );
   }
 
-  const key = generateS3Key(type, userId, filename);
+  const publicId = generatePublicId(type, userId, filename);
 
   try {
-    const command = new PutObjectCommand({
-      Bucket: config.aws.s3Bucket,
-      Key: key,
-      Body: buffer,
-      ContentType: mimeType,
-      // Note: ACL removed - configure bucket policy for public access instead
+    // Validate Cloudinary credentials are configured
+    if (
+      !config.cloudinary.cloudName ||
+      !config.cloudinary.apiKey ||
+      !config.cloudinary.apiSecret
+    ) {
+      throw new Error(
+        "Cloudinary credentials not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET.",
+      );
+    }
+
+    const dataUri = `data:${mimeType};base64,${buffer.toString("base64")}`;
+    const result = await cloudinary.uploader.upload(dataUri, {
+      public_id: publicId,
+      folder: config.cloudinary.folder,
+      resource_type: "image",
+      overwrite: true,
     });
 
-    await s3Client.send(command);
+    const url = result.secure_url;
+    logger.info(`File uploaded to Cloudinary: ${result.public_id}`);
 
-    const url = `${config.aws.s3Url}/${key}`;
-    logger.info(`File uploaded to S3: ${key}`);
+    return { url, key: result.public_id };
+  } catch (error: any) {
+    logger.error("Failed to upload file to Cloudinary:", {
+      error: error.message,
+      code: error.code || error.name,
+      publicId,
+    });
 
-    return { url, key };
-  } catch (error) {
-    logger.error("Failed to upload file to S3:", error);
-    throw new Error("Failed to upload file");
+    throw new Error(`Failed to upload file: ${error.message}`);
   }
 }
 
 /**
- * Delete file from S3
+ * Delete file from Cloudinary
  */
 export async function deleteFile(key: string): Promise<boolean> {
   try {
-    const command = new DeleteObjectCommand({
-      Bucket: config.aws.s3Bucket,
-      Key: key,
+    const result = await cloudinary.uploader.destroy(key, {
+      resource_type: "image",
     });
-
-    await s3Client.send(command);
-    logger.info(`File deleted from S3: ${key}`);
+    if (result.result !== "ok" && result.result !== "not found") {
+      logger.warn("Unexpected Cloudinary delete response", { key, result });
+    }
+    logger.info(`File deleted from Cloudinary: ${key}`);
     return true;
-  } catch (error) {
-    logger.error("Failed to delete file from S3:", error);
+  } catch (error: any) {
+    logger.error("Failed to delete file from Cloudinary:", {
+      key,
+      error: error.message,
+    });
     return false;
   }
 }
 
 /**
- * Generate presigned URL for file download
+ * Generate URL for file download
  */
 export async function getPresignedUrl(
   key: string,
-  expiresIn: number = 3600,
+  _expiresIn: number = 3600,
 ): Promise<string> {
   try {
-    const command = new GetObjectCommand({
-      Bucket: config.aws.s3Bucket,
-      Key: key,
+    return cloudinary.url(key, {
+      secure: true,
+      resource_type: "image",
     });
-
-    const url = await getSignedUrl(s3Client, command, { expiresIn });
-    return url;
   } catch (error) {
-    logger.error("Failed to generate presigned URL:", error);
+    logger.error("Failed to generate Cloudinary URL:", error);
     throw new Error("Failed to generate download URL");
   }
 }
 
 /**
- * Extract S3 key from URL
+ * Extract Cloudinary public ID from URL
  */
 export function extractKeyFromUrl(url: string): string | null {
   try {
-    const s3UrlBase = config.aws.s3Url;
-    if (url.startsWith(s3UrlBase)) {
-      return url.replace(`${s3UrlBase}/`, "");
+    const marker = "/upload/";
+    const idx = url.indexOf(marker);
+    if (idx === -1) {
+      return null;
     }
-    return null;
+
+    let pathPart = url.slice(idx + marker.length);
+    const queryIdx = pathPart.indexOf("?");
+    if (queryIdx !== -1) {
+      pathPart = pathPart.slice(0, queryIdx);
+    }
+
+    const segments = pathPart.split("/");
+    // Remove transformation/version segment if present (e.g., v1712345678)
+    if (segments.length > 0 && /^v\d+$/.test(segments[0])) {
+      segments.shift();
+    }
+
+    const joined = segments.join("/");
+    const dotIdx = joined.lastIndexOf(".");
+    return dotIdx === -1 ? joined : joined.slice(0, dotIdx);
   } catch {
     return null;
   }
@@ -168,7 +191,7 @@ export function extractKeyFromUrl(url: string): string | null {
 export async function deleteFileByUrl(url: string): Promise<boolean> {
   const key = extractKeyFromUrl(url);
   if (!key) {
-    logger.warn(`Could not extract S3 key from URL: ${url}`);
+    logger.warn(`Could not extract Cloudinary public ID from URL: ${url}`);
     return false;
   }
   return deleteFile(key);

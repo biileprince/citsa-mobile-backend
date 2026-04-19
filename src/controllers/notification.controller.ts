@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import prisma from "../config/database.js";
 import {
   sendSuccess,
+  sendCreated,
   calculatePagination,
   parsePaginationParams,
   getParamAsString,
@@ -11,6 +12,10 @@ import {
   NotificationQueryParams,
 } from "../types/index.js";
 import { asyncHandler, ApiError } from "../middleware/error.middleware.js";
+import {
+  sendPushToUser,
+  sendPushToUsers,
+} from "../services/pushNotification.service.js";
 
 /**
  * Get user notifications
@@ -183,6 +188,184 @@ export const clearReadNotifications = asyncHandler(
   },
 );
 
+/**
+ * Register device token for push notifications
+ * POST /api/v1/notifications/devices/register
+ */
+export const registerDeviceToken = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const userId = req.user!.userId;
+    const { token, platform = "android", deviceId } = req.body;
+
+    const deviceToken = await prisma.deviceToken.upsert({
+      where: { token },
+      update: {
+        userId,
+        platform,
+        deviceId: deviceId || null,
+        isActive: true,
+        lastSeenAt: new Date(),
+      },
+      create: {
+        userId,
+        token,
+        platform,
+        deviceId: deviceId || null,
+        isActive: true,
+      },
+    });
+
+    sendCreated(
+      res,
+      {
+        id: deviceToken.id,
+        token: deviceToken.token,
+        platform: deviceToken.platform,
+        isActive: deviceToken.isActive,
+        lastSeenAt: deviceToken.lastSeenAt,
+      },
+      "Device token registered successfully",
+    );
+  },
+);
+
+/**
+ * Unregister device token for push notifications
+ * DELETE /api/v1/notifications/devices/unregister
+ */
+export const unregisterDeviceToken = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const userId = req.user!.userId;
+    const { token } = req.body;
+
+    const result = await prisma.deviceToken.deleteMany({
+      where: { token, userId },
+    });
+
+    sendSuccess(
+      res,
+      { removed: result.count },
+      "Device token unregistered successfully",
+    );
+  },
+);
+
+// ==================== ADMIN ENDPOINTS ====================
+
+/**
+ * Send notification to a specific user (Admin only)
+ * POST /api/v1/notifications/send
+ */
+export const sendNotification = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const { userId, type, title, message, relatedEntityType, relatedEntityId } =
+      req.body;
+
+    // Verify user exists
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw ApiError.notFound("Target user not found");
+    }
+
+    const notification = await prisma.notification.create({
+      data: {
+        userId,
+        type,
+        title,
+        message,
+        relatedEntityType,
+        relatedEntityId,
+      },
+    });
+
+    await sendPushToUser(userId, {
+      title,
+      body: message,
+      data: {
+        type,
+        relatedEntityType: relatedEntityType || "",
+        relatedEntityId: relatedEntityId || "",
+        notificationId: notification.id,
+      },
+    });
+
+    sendCreated(
+      res,
+      {
+        id: notification.id,
+        userId: notification.userId,
+        type: notification.type,
+        title: notification.title,
+        message: notification.message,
+        createdAt: notification.createdAt,
+      },
+      "Notification sent successfully",
+    );
+  },
+);
+
+/**
+ * Broadcast notification to all or filtered users (Admin only)
+ * POST /api/v1/notifications/broadcast
+ */
+export const broadcastNotification = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const { type, title, message, relatedEntityType, relatedEntityId, role } =
+      req.body;
+
+    // Build user filter
+    const userWhere: any = { isActive: true };
+    if (role && ["STUDENT", "CLASS_REP", "ADMIN"].includes(role)) {
+      userWhere.role = role;
+    }
+
+    const users = await prisma.user.findMany({
+      where: userWhere,
+      select: { id: true },
+    });
+
+    if (users.length === 0) {
+      throw ApiError.badRequest("No users match the filter criteria");
+    }
+
+    // Create notifications in bulk
+    const notifications = users.map((user) => ({
+      userId: user.id,
+      type,
+      title,
+      message,
+      relatedEntityType: relatedEntityType || null,
+      relatedEntityId: relatedEntityId || null,
+    }));
+
+    const result = await prisma.notification.createMany({
+      data: notifications,
+    });
+
+    await sendPushToUsers(
+      users.map((user) => user.id),
+      {
+        title,
+        body: message,
+        data: {
+          type,
+          relatedEntityType: relatedEntityType || "",
+          relatedEntityId: relatedEntityId || "",
+        },
+      },
+    );
+
+    sendCreated(
+      res,
+      {
+        sentTo: result.count,
+        filter: role || "ALL",
+      },
+      `Notification broadcast to ${result.count} users`,
+    );
+  },
+);
+
 export default {
   getNotifications,
   getUnreadCount,
@@ -190,4 +373,8 @@ export default {
   markAllAsRead,
   deleteNotification,
   clearReadNotifications,
+  registerDeviceToken,
+  unregisterDeviceToken,
+  sendNotification,
+  broadcastNotification,
 };

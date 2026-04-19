@@ -2,7 +2,10 @@ import app from "./app.js";
 import config from "./config/index.js";
 import prisma from "./config/database.js";
 import logger from "./utils/logger.js";
-import { initializeTransports, verifyEmailConnection } from "./services/email.service.js";
+import {
+  initializeTransports,
+  verifyEmailConnection,
+} from "./services/email.service.js";
 import { cleanupExpiredTokens } from "./services/auth.service.js";
 
 const PORT = config.port;
@@ -28,9 +31,9 @@ async function startServer() {
     await prisma.$connect();
     logger.info("✅ Database connected successfully");
 
-    // Initialize email transports (Gmail API preferred, SMTP fallback)
+    // Initialize email transport (Resend API)
     await initializeTransports();
-    
+
     // Verify email configuration
     const emailConnected = await verifyEmailConnection();
     if (emailConnected) {
