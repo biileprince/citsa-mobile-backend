@@ -1221,6 +1221,7 @@ components:
               COMMENT,
               EVENT_REMINDER,
               ANNOUNCEMENT,
+              GROUP_MESSAGE,
               URGENT_ANNOUNCEMENT,
               EVENT_FULL,
               NEW_EVENT,
@@ -1243,6 +1244,35 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    RegisterDeviceTokenRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          minLength: 10
+          maxLength: 500
+          example: "fcm_device_token_here"
+        platform:
+          type: string
+          enum: [android, ios, web]
+          example: "android"
+        deviceId:
+          type: string
+          maxLength: 255
+          nullable: true
+          example: "pixel-8-pro"
+
+    UnregisterDeviceTokenRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          minLength: 10
+          maxLength: 500
+          example: "fcm_device_token_here"
 
     # ─── Admin ──────────────────────────────────────
     AdminStats:
@@ -1461,6 +1491,7 @@ components:
               COMMENT,
               EVENT_REMINDER,
               ANNOUNCEMENT,
+              GROUP_MESSAGE,
               URGENT_ANNOUNCEMENT,
               EVENT_FULL,
               NEW_EVENT,
@@ -1493,6 +1524,7 @@ components:
               COMMENT,
               EVENT_REMINDER,
               ANNOUNCEMENT,
+              GROUP_MESSAGE,
               URGENT_ANNOUNCEMENT,
               EVENT_FULL,
               NEW_EVENT,
@@ -5259,6 +5291,93 @@ paths:
                       deleted:
                         type: integer
                         example: 5
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /notifications/devices/register:
+    post:
+      tags: [Notifications]
+      summary: Register push device token
+      description: Stores or updates a device token for Firebase Cloud Messaging.
+      operationId: registerDeviceToken
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterDeviceTokenRequest"
+      responses:
+        "201":
+          description: Device token registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Device token registered successfully"
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      token:
+                        type: string
+                      platform:
+                        type: string
+                      isActive:
+                        type: boolean
+                      lastSeenAt:
+                        type: string
+                        format: date-time
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /notifications/devices/unregister:
+    delete:
+      tags: [Notifications]
+      summary: Unregister push device token
+      description: Removes the current user's saved device token.
+      operationId: unregisterDeviceToken
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnregisterDeviceTokenRequest"
+      responses:
+        "200":
+          description: Device token unregistered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Device token unregistered successfully"
+                  data:
+                    type: object
+                    properties:
+                      removed:
+                        type: integer
+                        example: 1
+        "400":
+          $ref: "#/components/responses/ValidationError"
         "401":
           $ref: "#/components/responses/Unauthorized"
 

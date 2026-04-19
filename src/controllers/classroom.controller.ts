@@ -12,6 +12,10 @@ import {
   CreateAnnouncementRequest,
 } from "../types/index.js";
 import { asyncHandler, ApiError } from "../middleware/error.middleware.js";
+import {
+  sendPushToUser,
+  sendPushToUsers,
+} from "../services/pushNotification.service.js";
 
 /**
  * Transform classroom for API response
@@ -351,7 +355,43 @@ export const createAnnouncement = asyncHandler(
       },
     });
 
-    // TODO: If urgent, create notifications for all students in the classroom
+    const classroomAudience = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        role: "STUDENT",
+        program: classroom.program,
+        classYear: classroom.graduationYear,
+      },
+      select: { id: true },
+    });
+
+    if (classroomAudience.length > 0) {
+      await prisma.notification.createMany({
+        data: classroomAudience.map((student) => ({
+          userId: student.id,
+          type: data.isUrgent ? "URGENT_ANNOUNCEMENT" : "ANNOUNCEMENT",
+          title: data.title,
+          message: data.content,
+          relatedEntityType: "classroom_announcement",
+          relatedEntityId: announcement.id,
+        })),
+      });
+
+      await sendPushToUsers(
+        classroomAudience.map((student) => student.id),
+        {
+          title: data.isUrgent ? `Urgent: ${data.title}` : data.title,
+          body: data.content,
+          data: {
+            type: data.isUrgent ? "URGENT_ANNOUNCEMENT" : "ANNOUNCEMENT",
+            relatedEntityType: "classroom_announcement",
+            relatedEntityId: announcement.id,
+            classroomId: classroom.id,
+            announcementId: announcement.id,
+          },
+        },
+      );
+    }
 
     sendCreated(
       res,
@@ -642,6 +682,16 @@ export const addAnnouncementComment = asyncHandler(
           type: "COMMENT",
           title: "New Comment",
           message: `${commenter?.fullName || "Someone"} commented on your announcement "${announcement.title}"`,
+          relatedEntityType: "announcement",
+          relatedEntityId: announcementId,
+        },
+      });
+
+      await sendPushToUser(announcement.repId, {
+        title: "New Comment",
+        body: `${commenter?.fullName || "Someone"} commented on your announcement \"${announcement.title}\"`,
+        data: {
+          type: "COMMENT",
           relatedEntityType: "announcement",
           relatedEntityId: announcementId,
         },

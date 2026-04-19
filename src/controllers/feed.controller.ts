@@ -17,6 +17,7 @@ import {
 } from "../types/index.js";
 import { asyncHandler, ApiError } from "../middleware/error.middleware.js";
 import { uploadFile } from "../services/storage.service.js";
+import { sendPushToUser } from "../services/pushNotification.service.js";
 import logger from "../utils/logger.js";
 
 /**
@@ -670,6 +671,16 @@ export const likePost = asyncHandler(
           relatedEntityId: id,
         },
       });
+
+      await sendPushToUser(post.authorId, {
+        title: "New Like",
+        body: `${liker?.fullName || "Someone"} liked your post`,
+        data: {
+          type: "LIKE",
+          relatedEntityType: "post",
+          relatedEntityId: id,
+        },
+      });
     }
 
     sendSuccess(res, { liked: true }, "Post liked successfully");
@@ -769,6 +780,16 @@ export const addComment = asyncHandler(
           type: "COMMENT",
           title: "New Comment",
           message: `${commenter?.fullName || "Someone"} commented on your post`,
+          relatedEntityType: "post",
+          relatedEntityId: id,
+        },
+      });
+
+      await sendPushToUser(post.authorId, {
+        title: "New Comment",
+        body: `${commenter?.fullName || "Someone"} commented on your post`,
+        data: {
+          type: "COMMENT",
           relatedEntityType: "post",
           relatedEntityId: id,
         },
@@ -970,6 +991,16 @@ export const reactToComment = asyncHandler(
           type: "LIKE",
           title: "New Reaction",
           message: `${reactor?.fullName || "Someone"} reacted ${reactionEmoji[reaction] || "👍"} to your comment`,
+          relatedEntityType: "comment",
+          relatedEntityId: commentId,
+        },
+      });
+
+      await sendPushToUser(comment.userId, {
+        title: "New Reaction",
+        body: `${reactor?.fullName || "Someone"} reacted to your comment`,
+        data: {
+          type: "LIKE",
           relatedEntityType: "comment",
           relatedEntityId: commentId,
         },

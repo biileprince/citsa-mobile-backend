@@ -143,6 +143,20 @@ async function main() {
         ]),
       },
     }),
+    prisma.user.upsert({
+      where: { studentId: "PS/ITC/25/0010" },
+      update: {
+        program: "Computer Science",
+      },
+      create: {
+        studentId: "PS/ITC/25/0010",
+        email: "swiftzak65@gmail.com",
+        role: UserRole.STUDENT,
+        isVerified: false,
+        program: "Computer Science",
+        classYear: "2029",
+      },
+    }),
   ]);
   console.log(`✅ Created ${students.length} sample students`);
 

@@ -9,6 +9,7 @@ import {
 } from "../utils/helpers.js";
 import { AuthenticatedRequest, GroupQueryParams } from "../types/index.js";
 import { asyncHandler, ApiError } from "../middleware/error.middleware.js";
+import { sendPushToUsers } from "../services/pushNotification.service.js";
 
 /**
  * Transform group for API response
@@ -459,6 +460,42 @@ export const createGroupMessage = asyncHandler(
         },
       },
     });
+
+    const members = await prisma.groupMembership.findMany({
+      where: {
+        groupId: id,
+        userId: { not: userId },
+      },
+      select: { userId: true },
+    });
+
+    if (members.length > 0) {
+      await prisma.notification.createMany({
+        data: members.map((member) => ({
+          userId: member.userId,
+          type: "GROUP_MESSAGE",
+          title: `New message in ${group.name}`,
+          message: content,
+          relatedEntityType: "group",
+          relatedEntityId: id,
+        })),
+      });
+
+      await sendPushToUsers(
+        members.map((member) => member.userId),
+        {
+          title: `New message in ${group.name}`,
+          body: content,
+          data: {
+            type: "GROUP_MESSAGE",
+            relatedEntityType: "group",
+            relatedEntityId: id,
+            groupId: id,
+            messageId: message.id,
+          },
+        },
+      );
+    }
 
     sendCreated(
       res,

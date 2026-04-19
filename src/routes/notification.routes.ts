@@ -6,6 +6,8 @@ import {
   notificationIdValidation,
   sendNotificationValidation,
   broadcastNotificationValidation,
+  registerDeviceTokenValidation,
+  unregisterDeviceTokenValidation,
 } from "../middleware/validation.middleware.js";
 
 const router = Router();
@@ -44,6 +46,30 @@ router.delete(
   "/clear-read",
   authenticate,
   notificationController.clearReadNotifications,
+);
+
+/**
+ * @route   POST /api/v1/notifications/devices/register
+ * @desc    Register a push device token
+ * @access  Private
+ */
+router.post(
+  "/devices/register",
+  authenticate,
+  validate(registerDeviceTokenValidation),
+  notificationController.registerDeviceToken,
+);
+
+/**
+ * @route   DELETE /api/v1/notifications/devices/unregister
+ * @desc    Unregister a push device token
+ * @access  Private
+ */
+router.delete(
+  "/devices/unregister",
+  authenticate,
+  validate(unregisterDeviceTokenValidation),
+  notificationController.unregisterDeviceToken,
 );
 
 /**

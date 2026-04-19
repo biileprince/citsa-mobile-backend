@@ -302,11 +302,7 @@ export const groupIdValidation = [
 ];
 
 export const groupMessageValidation = [
-  param("id")
-    .isString()
-    .trim()
-    .notEmpty()
-    .withMessage("Group ID is required"),
+  param("id").isString().trim().notEmpty().withMessage("Group ID is required"),
   body("content")
     .notEmpty()
     .withMessage("Message content is required")
@@ -315,14 +311,8 @@ export const groupMessageValidation = [
 ];
 
 export const groupMessageIdValidation = [
-  param("id")
-    .isString()
-    .trim()
-    .notEmpty()
-    .withMessage("Group ID is required"),
-  param("messageId")
-    .isUUID()
-    .withMessage("Invalid message ID"),
+  param("id").isString().trim().notEmpty().withMessage("Group ID is required"),
+  param("messageId").isUUID().withMessage("Invalid message ID"),
 ];
 
 export const groupQueryValidation = [
@@ -438,6 +428,30 @@ export const notificationQueryValidation = [
     .optional()
     .isBoolean()
     .withMessage("unreadOnly must be a boolean"),
+];
+
+export const registerDeviceTokenValidation = [
+  body("token")
+    .notEmpty()
+    .withMessage("Device token is required")
+    .isLength({ min: 10, max: 500 })
+    .withMessage("Device token must be between 10 and 500 characters"),
+  body("platform")
+    .optional()
+    .isIn(["android", "ios", "web"])
+    .withMessage("Platform must be android, ios, or web"),
+  body("deviceId")
+    .optional()
+    .isLength({ max: 255 })
+    .withMessage("Device ID must be less than 255 characters"),
+];
+
+export const unregisterDeviceTokenValidation = [
+  body("token")
+    .notEmpty()
+    .withMessage("Device token is required")
+    .isLength({ min: 10, max: 500 })
+    .withMessage("Device token must be between 10 and 500 characters"),
 ];
 
 // ==================== USER ID VALIDATION ====================
@@ -649,6 +663,7 @@ export const sendNotificationValidation = [
       "COMMENT",
       "EVENT_REMINDER",
       "ANNOUNCEMENT",
+      "GROUP_MESSAGE",
       "URGENT_ANNOUNCEMENT",
       "EVENT_FULL",
       "NEW_EVENT",
@@ -684,6 +699,7 @@ export const broadcastNotificationValidation = [
       "COMMENT",
       "EVENT_REMINDER",
       "ANNOUNCEMENT",
+      "GROUP_MESSAGE",
       "URGENT_ANNOUNCEMENT",
       "EVENT_FULL",
       "NEW_EVENT",

@@ -39,6 +39,13 @@ export const config = {
     fromName: process.env.RESEND_FROM_NAME || "CITSA App",
   },
 
+  // Firebase Cloud Messaging
+  firebase: {
+    projectId: process.env.FIREBASE_PROJECT_ID || "",
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL || "",
+    privateKey: (process.env.FIREBASE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+  },
+
   // Cloudinary (file uploads)
   cloudinary: {
     cloudName: process.env.CLOUDINARY_CLOUD_NAME || "",

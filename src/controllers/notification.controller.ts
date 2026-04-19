@@ -12,6 +12,10 @@ import {
   NotificationQueryParams,
 } from "../types/index.js";
 import { asyncHandler, ApiError } from "../middleware/error.middleware.js";
+import {
+  sendPushToUser,
+  sendPushToUsers,
+} from "../services/pushNotification.service.js";
 
 /**
  * Get user notifications
@@ -184,6 +188,68 @@ export const clearReadNotifications = asyncHandler(
   },
 );
 
+/**
+ * Register device token for push notifications
+ * POST /api/v1/notifications/devices/register
+ */
+export const registerDeviceToken = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const userId = req.user!.userId;
+    const { token, platform = "android", deviceId } = req.body;
+
+    const deviceToken = await prisma.deviceToken.upsert({
+      where: { token },
+      update: {
+        userId,
+        platform,
+        deviceId: deviceId || null,
+        isActive: true,
+        lastSeenAt: new Date(),
+      },
+      create: {
+        userId,
+        token,
+        platform,
+        deviceId: deviceId || null,
+        isActive: true,
+      },
+    });
+
+    sendCreated(
+      res,
+      {
+        id: deviceToken.id,
+        token: deviceToken.token,
+        platform: deviceToken.platform,
+        isActive: deviceToken.isActive,
+        lastSeenAt: deviceToken.lastSeenAt,
+      },
+      "Device token registered successfully",
+    );
+  },
+);
+
+/**
+ * Unregister device token for push notifications
+ * DELETE /api/v1/notifications/devices/unregister
+ */
+export const unregisterDeviceToken = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const userId = req.user!.userId;
+    const { token } = req.body;
+
+    const result = await prisma.deviceToken.deleteMany({
+      where: { token, userId },
+    });
+
+    sendSuccess(
+      res,
+      { removed: result.count },
+      "Device token unregistered successfully",
+    );
+  },
+);
+
 // ==================== ADMIN ENDPOINTS ====================
 
 /**
@@ -209,6 +275,17 @@ export const sendNotification = asyncHandler(
         message,
         relatedEntityType,
         relatedEntityId,
+      },
+    });
+
+    await sendPushToUser(userId, {
+      title,
+      body: message,
+      data: {
+        type,
+        relatedEntityType: relatedEntityType || "",
+        relatedEntityId: relatedEntityId || "",
+        notificationId: notification.id,
       },
     });
 
@@ -265,6 +342,19 @@ export const broadcastNotification = asyncHandler(
       data: notifications,
     });
 
+    await sendPushToUsers(
+      users.map((user) => user.id),
+      {
+        title,
+        body: message,
+        data: {
+          type,
+          relatedEntityType: relatedEntityType || "",
+          relatedEntityId: relatedEntityId || "",
+        },
+      },
+    );
+
     sendCreated(
       res,
       {
@@ -283,6 +373,8 @@ export default {
   markAllAsRead,
   deleteNotification,
   clearReadNotifications,
+  registerDeviceToken,
+  unregisterDeviceToken,
   sendNotification,
   broadcastNotification,
 };

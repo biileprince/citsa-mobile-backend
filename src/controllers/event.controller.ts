@@ -13,6 +13,7 @@ import {
   ErrorCodes,
 } from "../types/index.js";
 import { asyncHandler, ApiError } from "../middleware/error.middleware.js";
+import { sendPushToUser } from "../services/pushNotification.service.js";
 
 /**
  * Transform event for API response
@@ -262,6 +263,16 @@ export const registerForEvent = asyncHandler(
         type: "EVENT_REMINDER",
         title: "Event Registration Confirmed",
         message: `You have successfully registered for "${event.post?.title || "an event"}"`,
+        relatedEntityType: "event",
+        relatedEntityId: id,
+      },
+    });
+
+    await sendPushToUser(userId, {
+      title: "Event Registration Confirmed",
+      body: `You have successfully registered for \"${event.post?.title || "an event"}\"`,
+      data: {
+        type: "EVENT_REMINDER",
         relatedEntityType: "event",
         relatedEntityId: id,
       },
