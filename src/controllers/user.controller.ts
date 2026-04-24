@@ -201,13 +201,21 @@ export const uploadAvatar = asyncHandler(
     });
 
     // Upload new avatar
-    const { url } = await uploadFile(
-      req.file.buffer,
-      req.file.originalname,
-      req.file.mimetype,
-      "avatar",
-      userId,
-    );
+    let url: string;
+    try {
+      const uploadResult = await uploadFile(
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype,
+        "avatar",
+        userId,
+      );
+      url = uploadResult.url;
+    } catch (uploadError: any) {
+      throw ApiError.badRequest(
+        `Avatar upload failed: ${uploadError.message || "Check Cloudinary configuration"}`,
+      );
+    }
 
     // Delete old avatar if exists
     if (user?.avatarUrl) {

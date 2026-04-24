@@ -1,5 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
+import { Request, Response, NextFunction } from "express";
 import feedController from "../controllers/feed.controller.js";
 import {
   authenticate,
@@ -24,6 +25,7 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB for posts
+    files: 1,
   },
   fileFilter: (req, file, cb) => {
     const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
@@ -38,6 +40,44 @@ const upload = multer({
     }
   },
 });
+
+function normalizeSingleUploadedFile(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): void {
+  if (req.file) {
+    next();
+    return;
+  }
+
+  const files = req.files as
+    | Record<string, Express.Multer.File[]>
+    | Express.Multer.File[]
+    | undefined;
+
+  if (!files) {
+    next();
+    return;
+  }
+
+  if (Array.isArray(files)) {
+    req.file = files[0];
+    next();
+    return;
+  }
+
+  const preferredFields = ["image", "images", "coverImage"];
+  for (const field of preferredFields) {
+    const file = files[field]?.[0];
+    if (file) {
+      req.file = file;
+      break;
+    }
+  }
+
+  next();
+}
 
 /**
  * @route   GET /api/v1/feed/posts
@@ -80,7 +120,12 @@ router.post(
   authenticate,
   requireAdmin,
   uploadLimiter,
-  upload.single("image"),
+  upload.fields([
+    { name: "image", maxCount: 1 },
+    { name: "images", maxCount: 1 },
+    { name: "coverImage", maxCount: 1 },
+  ]),
+  normalizeSingleUploadedFile,
   validate(createPostValidation),
   feedController.createPost,
 );
@@ -95,7 +140,12 @@ router.put(
   authenticate,
   requireAdmin,
   uploadLimiter,
-  upload.single("image"),
+  upload.fields([
+    { name: "image", maxCount: 1 },
+    { name: "images", maxCount: 1 },
+    { name: "coverImage", maxCount: 1 },
+  ]),
+  normalizeSingleUploadedFile,
   validate([...postIdValidation, ...updatePostValidation]),
   feedController.updatePost,
 );

@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { sendError } from "../utils/helpers.js";
 import { ErrorCodes } from "../types/index.js";
 import logger from "../utils/logger.js";
+import multer from "multer";
 
 /**
  * Custom API Error class
@@ -118,6 +119,32 @@ export function errorHandler(
   // Handle validation errors
   if (err.name === "ValidationError") {
     sendError(res, ErrorCodes.VALIDATION_ERROR, err.message, 400);
+    return;
+  }
+
+  // Handle multer upload errors
+  if (err instanceof multer.MulterError) {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      sendError(res, ErrorCodes.INVALID_INPUT, "Uploaded file is too large", 400);
+      return;
+    }
+
+    if (err.code === "LIMIT_UNEXPECTED_FILE") {
+      sendError(
+        res,
+        ErrorCodes.INVALID_INPUT,
+        "Unexpected upload field. Use 'avatar' for profile uploads or 'image' for post/event uploads.",
+        400,
+      );
+      return;
+    }
+
+    sendError(res, ErrorCodes.INVALID_INPUT, err.message, 400);
+    return;
+  }
+
+  if (err.message.includes("Invalid file type")) {
+    sendError(res, ErrorCodes.INVALID_INPUT, err.message, 400);
     return;
   }
 

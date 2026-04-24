@@ -1,5 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
+import { Request, Response, NextFunction } from "express";
 import userController from "../controllers/user.controller.js";
 import {
   authenticate,
@@ -23,6 +24,7 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB
+    files: 1,
   },
   fileFilter: (req, file, cb) => {
     const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
@@ -37,6 +39,44 @@ const upload = multer({
     }
   },
 });
+
+function normalizeSingleUploadedFile(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): void {
+  if (req.file) {
+    next();
+    return;
+  }
+
+  const files = req.files as
+    | Record<string, Express.Multer.File[]>
+    | Express.Multer.File[]
+    | undefined;
+
+  if (!files) {
+    next();
+    return;
+  }
+
+  if (Array.isArray(files)) {
+    req.file = files[0];
+    next();
+    return;
+  }
+
+  const preferredFields = ["avatar", "profileImage", "image"];
+  for (const field of preferredFields) {
+    const file = files[field]?.[0];
+    if (file) {
+      req.file = file;
+      break;
+    }
+  }
+
+  next();
+}
 
 /**
  * @route   GET /api/v1/users/profile
@@ -90,7 +130,12 @@ router.post(
   "/avatar",
   authenticate,
   uploadLimiter,
-  upload.single("avatar"),
+  upload.fields([
+    { name: "avatar", maxCount: 1 },
+    { name: "profileImage", maxCount: 1 },
+    { name: "image", maxCount: 1 },
+  ]),
+  normalizeSingleUploadedFile,
   userController.uploadAvatar,
 );
 
